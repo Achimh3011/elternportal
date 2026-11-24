@@ -32,17 +32,23 @@ Die Zugangsdaten werden aus `pass` gelesen: erste Zeile = Passwort, `user:`-Zeil
 ## Nutzung
 
 ```console
-    # Alle konfigurierten Portale abrufen
+    # Status: Anzahl neuer und bekannter Meldungen je Portal/Bereich
     fetch-elternportal
 
-    # Nur ein Portal, nur anzeigen was neu wäre
-    fetch-elternportal --portal gym-a --dry-run
+    # Neue Meldungen abholen (speichern, anzeigen, bestätigen)
+    fetch-elternportal --neu
+
+    # Nur ein Portal
+    fetch-elternportal --neu --portal gym-a
+
+    # Nur anzeigen was neu wäre (ohne zu speichern)
+    fetch-elternportal --neu --dry-run
 
     # Ohne Lesebestätigung (z. B. zum stillen Archivieren)
-    fetch-elternportal --keine-bestaetigung
+    fetch-elternportal --neu --keine-bestaetigung
 
     # Ohne Terminal-Ausgabe und ohne Öffnen von Anhängen (z. B. Cron)
-    fetch-elternportal --keine-ausgabe
+    fetch-elternportal --neu --keine-ausgabe
 
     # Die 5 neuesten Meldungen eines Portals erneut holen (unabhängig vom Lesestatus)
     fetch-elternportal --letzte 5

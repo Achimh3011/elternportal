@@ -62,6 +62,13 @@ class Kandidat:
 )
 @click.option("--dry-run", "trocken", is_flag=True, default=False, help="Nur anzeigen, nichts speichern.")
 @click.option(
+    "--neu",
+    "neu_holen",
+    is_flag=True,
+    default=False,
+    help="Neue Meldungen abholen und speichern (ohne dieses Flag wird nur gezählt).",
+)
+@click.option(
     "--keine-bestaetigung",
     "bestaetigen",
     is_flag=True,
@@ -87,6 +94,7 @@ def main(
     slugs: tuple[str, ...],
     config_pfad: Path | None,
     trocken: bool,
+    neu_holen: bool,
     bestaetigen: bool,
     ausgeben: bool,
     letzte: int | None,
@@ -102,13 +110,22 @@ def main(
     for portal in konfig.portale:
         if slugs and portal.slug not in slugs:
             continue
-        _portal_abholen(portal, konfig.output_dir, state, trocken, not bestaetigen, not ausgeben, letzte or 0)
+        _portal_abholen(
+            portal, konfig.output_dir, state, trocken, neu_holen, not bestaetigen, not ausgeben, letzte or 0
+        )
     if not trocken:
         state.sichern()
 
 
 def _portal_abholen(
-    portal, output_dir: Path, state: State, trocken: bool, bestaetigen: bool, ausgeben: bool, letzte: int
+    portal,
+    output_dir: Path,
+    state: State,
+    trocken: bool,
+    neu_holen: bool,
+    bestaetigen: bool,
+    ausgeben: bool,
+    letzte: int,
 ) -> None:
     try:
         benutzer, passwort = zugangsdaten(portal.pass_eintrag)
@@ -125,9 +142,11 @@ def _portal_abholen(
             kontext = LaufKontext(client, portal, kind_name, output_dir, state, trocken, bestaetigen, ausgeben, letzte)
             if letzte:
                 _letzte_abholen(kontext)
-            else:
+            elif neu_holen:
                 for bereich in portal.bereiche:
                     _bereich_abholen(kontext, bereich)
+            else:
+                _portal_zaehlen(kontext)
     except (LoginFehlgeschlagen, httpx2.HTTPError) as fehler:
         click.secho(f"Portal {portal.slug} abgebrochen: {fehler}", err=True, fg="red")
     finally:
@@ -143,6 +162,44 @@ def _bereich_abholen(kontext: LaufKontext, bereich: str) -> None:
     brief_liste = _listen_abholen(kontext, bereich, seite, name, ist_seite, parse, dokument_fabrik)
     if bereich == "elternbriefe":
         _briefe_bestaetigen(kontext, brief_liste)
+
+
+def _portal_zaehlen(kontext: LaufKontext) -> None:
+    """Count new and known messages per bereich without fetching anything."""
+    gesamt = 0
+    for bereich in kontext.portal.bereiche:
+        seite = kontext.client.seite_holen(BEREICHE_URLS[bereich])
+        gesamt += _bereich_zaehlen(kontext, bereich, seite)
+    if gesamt:
+        click.secho(f"{kontext.portal.slug}: {gesamt} neue Meldungen - mit --neu abholen.", fg="cyan")
+    else:
+        click.secho(f"{kontext.portal.slug}: keine neuen Meldungen.", fg="green")
+
+
+def _bereich_zaehlen(kontext: LaufKontext, bereich: str, seite: str) -> int:
+    """Return the number of new messages in one bereich."""
+    _, summen, name = _bereich_parsen(kontext, bereich, seite)
+    if name is None:
+        return 0
+    neu = sum(1 for ident, summe in summen.items() if _ist_neu(kontext, bereich, ident, summe))
+    click.echo(f"{kontext.portal.slug}/{name}: {neu} neu, {len(summen) - neu} bekannt")
+    return neu
+
+
+def _bereich_parsen(kontext: LaufKontext, bereich: str, seite: str) -> tuple[list, dict[str, str], str | None]:
+    """Parse one bereich page into entries with their checksums and display name."""
+    if bereich == "fachlehrer":
+        if not kommunikation.ist_fachlehrer_seite(seite):
+            click.secho(f"{kontext.portal.slug}: Bereich Fachlehrer nicht verfügbar.", fg="yellow")
+            return [], {}, None
+        links = kommunikation.parse_thread_links(seite)
+        return links, {link.ident: render.threadlink_pruefsumme(link) for link in links}, "Fachlehrer"
+    name, ist_seite, parse, _ = _BEREICHE[bereich]
+    if not ist_seite(seite):
+        click.secho(f"{kontext.portal.slug}: Bereich {name} nicht verfügbar.", fg="yellow")
+        return [], {}, None
+    eintraege = parse(seite)
+    return eintraege, {eintrag.ident: pruefsumme(eintrag) for eintrag in eintraege}, name
 
 
 def _letzte_abholen(kontext: LaufKontext) -> None:
@@ -215,11 +272,10 @@ def _listen_abholen(
     neu = 0
     eintraege = parse(seite)
     for eintrag in eintraege:
-        ident = _state_ident(eintrag.ident, kontext.kind)
         summe = pruefsumme(eintrag)
-        if kontext.state.ist_bekannt(kontext.portal.slug, bereich, ident, summe):
-            continue
-        if _dokument_speichern(kontext, bereich, dokument_fabrik(eintrag, kontext.kind), summe):
+        if _ist_neu(kontext, bereich, eintrag.ident, summe) and _dokument_speichern(
+            kontext, bereich, dokument_fabrik(eintrag, kontext.kind), summe
+        ):
             neu += 1
     _bereich_melden(kontext, name, neu)
     return eintraege
@@ -231,9 +287,8 @@ def _fachlehrer_abholen(kontext: LaufKontext, seite: str) -> None:
         return
     neu = 0
     for link in kommunikation.parse_thread_links(seite):
-        ident = _state_ident(link.ident, kontext.kind)
         summe = render.threadlink_pruefsumme(link)
-        if kontext.state.ist_bekannt(kontext.portal.slug, "fachlehrer", ident, summe):
+        if not _ist_neu(kontext, "fachlehrer", link.ident, summe):
             continue
         thread = kommunikation.parse_thread(
             kontext.client.seite_holen(f"meldungen/kommunikation_fachlehrer/{link.lehrer_id}/{link.thread_id}"), link
@@ -277,6 +332,12 @@ def _dokument_speichern(kontext: LaufKontext, bereich: str, dokument: Dokument, 
 def _bereich_melden(kontext: LaufKontext, name: str, neu: int) -> None:
     if neu:
         click.secho(f"{kontext.portal.slug}: {neu} neue Einträge in {name}.", fg="green")
+
+
+def _ist_neu(kontext: LaufKontext, bereich: str, ident: str, summe: str) -> bool:
+    """Whether a message is unknown or changed compared to the stored state."""
+    state_ident = _state_ident(ident, kontext.kind)
+    return not kontext.state.ist_bekannt(kontext.portal.slug, bereich, state_ident, summe)
 
 
 def _state_ident(ident: str, kind: str) -> str:

@@ -118,3 +118,39 @@ def test_letzte_waehlt_zeitlich_neuesten_thread(mocker, tmp_path, fixture_html):
     _letzte_abholen(kontext)
     dateien = list((tmp_path / "los" / "fachlehrer").glob("*.md"))
     assert [pfad.name for pfad in dateien] == ["2026-11-23-5001-reminder-weihnachtspaeckchenaktion.md"]
+
+
+def test_zaehlen_gibt_nur_anzahlen_aus(mocker, tmp_path, fixture_html, capsys):
+    from elternportal import briefe
+    from elternportal.fetch import _portal_zaehlen
+    from elternportal.store import pruefsumme
+
+    briefe_seite = fixture_html("elternbriefe.html")
+    client = mocker.Mock()
+    client.seite_holen.side_effect = lambda pfad: briefe_seite
+    kontext = _letzte_kontext(client, tmp_path, ("elternbriefe",), 0)
+    bekannt = briefe.parse_briefe(briefe_seite)[0]
+    kontext.state.merken("los", "elternbriefe", f"{bekannt.ident}@kind", pruefsumme(bekannt))
+    _portal_zaehlen(kontext)
+    ausgabe = capsys.readouterr().out
+    assert "los/Elternbriefe: 2 neu, 1 bekannt" in ausgabe
+    assert "mit --neu abholen" in ausgabe
+    client.anhang_holen.assert_not_called()
+    assert not (tmp_path / "los").exists()
+
+
+def test_zaehlen_ohne_neue_meldungen(mocker, tmp_path, fixture_html, capsys):
+    from elternportal import briefe
+    from elternportal.fetch import _portal_zaehlen
+    from elternportal.store import pruefsumme
+
+    briefe_seite = fixture_html("elternbriefe.html")
+    client = mocker.Mock()
+    client.seite_holen.side_effect = lambda pfad: briefe_seite
+    kontext = _letzte_kontext(client, tmp_path, ("elternbriefe",), 0)
+    for eintrag in briefe.parse_briefe(briefe_seite):
+        kontext.state.merken("los", "elternbriefe", f"{eintrag.ident}@kind", pruefsumme(eintrag))
+    _portal_zaehlen(kontext)
+    ausgabe = capsys.readouterr().out
+    assert "los/Elternbriefe: 0 neu, 3 bekannt" in ausgabe
+    assert "keine neuen Meldungen" in ausgabe
