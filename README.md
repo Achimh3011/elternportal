@@ -29,6 +29,18 @@ pass_eintrag = familie/eltern@gym-b
 Jede Sektion entspricht einem Portal (Slug der Subdomain von `eltern-portal.org`).
 Die Zugangsdaten werden aus `pass` gelesen: erste Zeile = Passwort, `user:`-Zeile = Benutzername.
 
+`bereiche` kann pro Portal überschrieben werden (der `DEFAULT`-Wert gilt nur,
+solange ein Portal selbst nichts angibt) – z. B. für Portale ohne Klassenleitung:
+
+```ini
+[gym-b]
+pass_eintrag = familie/eltern@gym-b
+bereiche = elternbriefe, fachlehrer, brett
+```
+
+Nicht konfigurierte Bereiche werden gar nicht erst abgefragt; die Warnung
+„Bereich … nicht verfügbar" erscheint dann nicht mehr.
+
 ## Nutzung
 
 ```console
