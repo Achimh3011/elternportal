@@ -76,6 +76,25 @@ def test_pruefsumme_ignoriert_session_csrf():
     assert pruefsumme(brief("aaaabbbbccccdddd")) != pruefsumme(brief("x"))
 
 
+def test_pruefsumme_ignoriert_bestaetigt_status():
+    """Confirming a brief must not mark it as changed on the next run."""
+    from elternportal.models import Brief
+
+    def brief(bestaetigt: bool) -> Brief:
+        return Brief(
+            ident="911",
+            nummer="11",
+            titel="Titel",
+            datum=datetime(2026, 1, 1),
+            klassen="5b",
+            bestaetigt=bestaetigt,
+            body_html="<p>Hi</p>",
+            anhaenge=(),
+        )
+
+    assert pruefsumme(brief(True)) == pruefsumme(brief(False))
+
+
 def test_dokument_schreiben(tmp_path):
     dokument = Dokument(
         ident="912",

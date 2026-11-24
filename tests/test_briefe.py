@@ -13,6 +13,7 @@ def test_text_brief_parsen(fixture_html):
     brief = briefs[0]
     assert brief.nummer == "12"
     assert brief.ident == "912"
+    assert brief.eb_id == "912"
     assert brief.titel == "Kuchenbuffet beim Sommerfest"
     assert (brief.datum.year, brief.datum.month, brief.datum.day) == (2025, 7, 5)
     assert brief.klassen == "5b"

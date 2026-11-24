@@ -86,6 +86,7 @@ ignore = [
 "tests/**" = [
     "S101", # asserts are fine in tests
     "S105", # test fixtures contain fake credential paths, not real passwords
+    "S106", # test fixtures contain fake credential paths, not real passwords
 ]
 
 [tool.ruff.format]

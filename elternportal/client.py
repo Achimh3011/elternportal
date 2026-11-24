@@ -56,6 +56,12 @@ class PortalClient:
         time.sleep(_REQUEST_PAUSE_SECONDS)
         return antwort.content
 
+    def brief_bestaetigen(self, eb_id: str) -> None:
+        """Confirm receipt of one Elternbrief (mark it as read)."""
+        antwort = self._client.get("/api/elternbrief_bestaetigen.php", params={"eb": eb_id})
+        antwort.raise_for_status()
+        time.sleep(_REQUEST_PAUSE_SECONDS)
+
     def kinder(self) -> list[tuple[str, str]]:
         """List registered children as (id, name) pairs."""
         root = lhtml.fromstring(self.seite_holen("/start"))

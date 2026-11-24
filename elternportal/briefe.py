@@ -51,8 +51,10 @@ def _parse_brief(kopf: etree._Element, inhalt: etree._Element) -> Brief | None:
         return None
     element = titel_element[0]
     nummer = zellen[0].text.strip().lstrip("#")
+    eb_id = _ident_aus_status(zellen[-1])
     return Brief(
-        ident=_ident_aus_status(zellen[-1]) or nummer,
+        ident=eb_id or nummer,
+        eb_id=eb_id,
         nummer=nummer,
         titel=element.xpath("string(./h4)").strip(),
         datum=_parse_datum(etree.tostring(element, encoding="unicode")),

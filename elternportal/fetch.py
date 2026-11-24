@@ -8,9 +8,10 @@ import httpx2
 import rich_click as click
 from click_loglevel import LogLevel
 
-from elternportal import brett, briefe, kommunikation, render
+from elternportal import ausgabe, brett, briefe, kommunikation, render
 from elternportal.client import LoginFehlgeschlagen, PortalClient
 from elternportal.config import BEREICHE_URLS, STATE_DATEI, lade_konfiguration, PortalKonfiguration
+from elternportal.models import Brief
 from elternportal.passstore import zugangsdaten
 from elternportal.render import Dokument
 from elternportal.store import State, pruefsumme, schreibe_dokument, speichere_anhaenge
@@ -28,6 +29,8 @@ class LaufKontext:
     output_dir: Path
     state: State
     trocken: bool
+    bestaetigen: bool
+    ausgeben: bool
 
 
 @click.command()
@@ -36,8 +39,24 @@ class LaufKontext:
     "--config", "config_pfad", type=click.Path(path_type=Path), default=None, help="Alternative Konfigurationsdatei."
 )
 @click.option("--dry-run", "trocken", is_flag=True, default=False, help="Nur anzeigen, nichts speichern.")
+@click.option(
+    "--keine-bestaetigung",
+    "bestaetigen",
+    is_flag=True,
+    default=False,
+    help="Elternbriefe NICHT als gelesen bestätigen.",
+)
+@click.option(
+    "--keine-ausgabe",
+    "ausgeben",
+    is_flag=True,
+    default=False,
+    help="Neue Meldungen weder im Terminal ausgeben noch Anhänge öffnen.",
+)
 @click.option("--log-level", "-l", type=LogLevel(), default=logging.WARNING)
-def main(slugs: tuple[str, ...], config_pfad: Path | None, trocken: bool, log_level: int) -> None:
+def main(
+    slugs: tuple[str, ...], config_pfad: Path | None, trocken: bool, bestaetigen: bool, ausgeben: bool, log_level: int
+) -> None:
     """Neue Nachrichten aus den Eltern-Portal/en als Markdown abholen."""
     logging.basicConfig(level=log_level)
     konfig = lade_konfiguration(config_pfad)
@@ -48,12 +67,12 @@ def main(slugs: tuple[str, ...], config_pfad: Path | None, trocken: bool, log_le
     for portal in konfig.portale:
         if slugs and portal.slug not in slugs:
             continue
-        _portal_abholen(portal, konfig.output_dir, state, trocken)
+        _portal_abholen(portal, konfig.output_dir, state, trocken, not bestaetigen, not ausgeben)
     if not trocken:
         state.sichern()
 
 
-def _portal_abholen(portal, output_dir: Path, state: State, trocken: bool) -> None:
+def _portal_abholen(portal, output_dir: Path, state: State, trocken: bool, bestaetigen: bool, ausgeben: bool) -> None:
     try:
         benutzer, passwort = zugangsdaten(portal.pass_eintrag)
         client = PortalClient(portal.slug, benutzer, passwort)
@@ -66,7 +85,7 @@ def _portal_abholen(portal, output_dir: Path, state: State, trocken: bool) -> No
         for kind_id, kind_name in kinder:
             if len(kinder) > 1 and kind_id:
                 client.kind_waehlen(kind_id)
-            kontext = LaufKontext(client, portal, kind_name, output_dir, state, trocken)
+            kontext = LaufKontext(client, portal, kind_name, output_dir, state, trocken, bestaetigen, ausgeben)
             for bereich in portal.bereiche:
                 _bereich_abholen(kontext, bereich)
     except (LoginFehlgeschlagen, httpx2.HTTPError) as fehler:
@@ -78,9 +97,10 @@ def _portal_abholen(portal, output_dir: Path, state: State, trocken: bool) -> No
 def _bereich_abholen(kontext: LaufKontext, bereich: str) -> None:
     seite = kontext.client.seite_holen(BEREICHE_URLS[bereich])
     if bereich == "elternbriefe":
-        _listen_abholen(
+        brief_liste = _listen_abholen(
             kontext, bereich, seite, "Elternbriefe", briefe.ist_briefe_seite, briefe.parse_briefe, render.brief_dokument
         )
+        _briefe_bestaetigen(kontext, brief_liste)
     elif bereich == "brett":
         _listen_abholen(
             kontext, bereich, seite, "Schwarzes Brett", brett.ist_brett_seite, brett.parse_brett, render.brett_dokument
@@ -101,12 +121,14 @@ def _bereich_abholen(kontext: LaufKontext, bereich: str) -> None:
 
 def _listen_abholen(
     kontext: LaufKontext, bereich: str, seite: str, name: str, ist_seite, parse, dokument_fabrik
-) -> None:
+) -> list:
+    """Fetch one list section, save new entries and return all parsed entries."""
     if not ist_seite(seite):
         click.secho(f"{kontext.portal.slug}: Bereich {name} nicht verfügbar.", fg="yellow")
-        return
+        return []
     neu = 0
-    for eintrag in parse(seite):
+    eintraege = parse(seite)
+    for eintrag in eintraege:
         ident = _state_ident(eintrag.ident, kontext.kind)
         summe = pruefsumme(eintrag)
         if kontext.state.ist_bekannt(kontext.portal.slug, bereich, ident, summe):
@@ -114,6 +136,21 @@ def _listen_abholen(
         if _dokument_speichern(kontext, bereich, dokument_fabrik(eintrag, kontext.kind), summe):
             neu += 1
     _bereich_melden(kontext, name, neu)
+    return eintraege
+
+
+def _briefe_bestaetigen(kontext: LaufKontext, brief_liste: list[Brief]) -> None:
+    """Confirm receipt of every unconfirmed Elternbrief, including known ones."""
+    if kontext.trocken or not kontext.bestaetigen:
+        return
+    offene = [brief for brief in brief_liste if not brief.bestaetigt and brief.eb_id]
+    for brief in offene:
+        try:
+            kontext.client.brief_bestaetigen(brief.eb_id)
+        except httpx2.HTTPError as fehler:
+            click.secho(f"Bestätigung fehlgeschlagen für #{brief.nummer}: {fehler}", err=True, fg="red")
+    if offene:
+        click.secho(f"{kontext.portal.slug}: {len(offene)} Elternbriefe als gelesen bestätigt.", fg="cyan")
 
 
 def _fachlehrer_abholen(kontext: LaufKontext, seite: str) -> None:
@@ -146,6 +183,8 @@ def _dokument_speichern(kontext: LaufKontext, bereich: str, dokument: Dokument, 
     datei = schreibe_dokument(dokument, kontext.portal.slug, ziel, infos)
     kontext.state.merken(kontext.portal.slug, bereich, ident, summe)
     click.secho(f"Neu: {datei}", fg="green")
+    if kontext.ausgeben:
+        ausgabe.zeige_dokument(dokument, infos)
     return True
 
 

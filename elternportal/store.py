@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 
 _VERBOTENE_ZEICHEN = '<>:"/\\|?*'
 _SESSION_CSRF_RE = re.compile(r"csrf=[0-9a-f]+")
+_BESTAETIGT_RE = re.compile(r"bestaetigt=(True|False)")
 
 
 class State:
@@ -54,10 +55,12 @@ class AnhangInfo:
 def pruefsumme(eintrag: object) -> str:
     """Content checksum for any (frozen) dataclass from models.
 
-    Session-bound CSRF tokens inside attachment URLs are ignored so
-    that unchanged messages stay unchanged across runs.
+    Session-bound CSRF tokens inside attachment URLs and the read
+    confirmation state are ignored so that unchanged messages stay
+    unchanged across runs.
     """
     normalized = _SESSION_CSRF_RE.sub("csrf=", repr(eintrag))
+    normalized = _BESTAETIGT_RE.sub("bestaetigt=", normalized)
     return hashlib.sha256(normalized.encode()).hexdigest()[:16]
 
 

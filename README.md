@@ -37,8 +37,22 @@ Die Zugangsdaten werden aus `pass` gelesen: erste Zeile = Passwort, `user:`-Zeil
 
     # Nur ein Portal, nur anzeigen was neu wäre
     fetch-elternportal --portal gym-a --dry-run
+
+    # Ohne Lesebestätigung (z. B. zum stillen Archivieren)
+    fetch-elternportal --keine-bestaetigung
+
+    # Ohne Terminal-Ausgabe und ohne Öffnen von Anhängen (z. B. Cron)
+    fetch-elternportal --keine-ausgabe
 ```
 
 Neue Nachrichten landen unter `output_dir/<portal>/<bereich>/<datum>-<nummer>.md`,
 Anhänge im selben Verzeichnis. Bereiche, die ein Portal nicht anbietet, werden mit
-Warnung übersprungen. Lesebestätigungen für Elternbriefe werden **nicht** ausgelöst.
+Warnung übersprungen.
+
+Neue Meldungen werden im Terminal ausgegeben (Text als Markdown); vorhandene
+Anhänge werden mit `xdg-open` geöffnet. Hat eine Meldung keinen Textkörper, wird
+stattdessen der extrahierte Anhang-Text ausgegeben, sofern er lesbar ist –
+sonst wird der Anhang geöffnet.
+
+Elternbriefe werden nach dem Abrufen **als gelesen bestätigt** (inklusive des
+Bestands vom Erstlauf); mit `--keine-bestaetigung` wird darauf verzichtet.

@@ -24,6 +24,7 @@ class Brief:
     bestaetigt: bool
     body_html: str
     anhaenge: tuple[Anhang, ...]
+    eb_id: str = ""
 
 
 @dataclass(frozen=True)
