@@ -23,10 +23,12 @@ def _brief(nummer: str, eb_id: str, bestaetigt: bool) -> Brief:
 
 
 def _kontext(
-    client, tmp_path, *, bestaetigen: bool = True, trocken: bool = False, ausgeben: bool = True
+    client, tmp_path, *, bestaetigen: bool = True, trocken: bool = False, ausgeben: bool = True, letzte: int = 0
 ) -> LaufKontext:
     portal = PortalKonfiguration(slug="los", pass_eintrag="familie/los", bereiche=())
-    return LaufKontext(client, portal, "Kind", tmp_path, State(tmp_path / "state.json"), trocken, bestaetigen, ausgeben)
+    return LaufKontext(
+        client, portal, "Kind", tmp_path, State(tmp_path / "state.json"), trocken, bestaetigen, ausgeben, letzte
+    )
 
 
 def test_unbestaetigte_briefe_werden_bestätigt(mocker, tmp_path):
@@ -84,3 +86,35 @@ def test_dokument_wird_nur_bei_ausgabe_angezeigt(mocker, tmp_path):
     zeige.reset_mock()
     assert _dokument_speichern(_kontext(client, tmp_path, ausgeben=False), "elternbriefe", dokument, "summe") is True
     zeige.assert_not_called()
+
+
+def _letzte_kontext(client, tmp_path, bereiche, n) -> LaufKontext:
+    portal = PortalKonfiguration(slug="los", pass_eintrag="familie/los", bereiche=bereiche)
+    return LaufKontext(client, portal, "Kind", tmp_path, State(tmp_path / "state.json"), False, True, False, n)
+
+
+def test_letzte_holt_die_n_neuesten_briefe(mocker, tmp_path, fixture_html):
+    from elternportal.fetch import _letzte_abholen
+
+    client = mocker.Mock()
+    client.seite_holen.side_effect = lambda pfad: fixture_html("elternbriefe.html")
+    client.anhang_holen.side_effect = lambda url: b"x"
+    kontext = _letzte_kontext(client, tmp_path, ("elternbriefe",), 2)
+    _letzte_abholen(kontext)
+    dateien = sorted(pfad.name for pfad in (tmp_path / "los" / "elternbriefe").glob("*.md"))
+    assert dateien == ["2025-07-05-12-kuchenbuffet-beim-sommerfest.md", "2026-11-20-11-sozialpraktikum.md"]
+    client.brief_bestaetigen.assert_called_once_with("912")
+
+
+def test_letzte_waehlt_zeitlich_neuesten_thread(mocker, tmp_path, fixture_html):
+    from elternportal.fetch import _letzte_abholen
+
+    liste = fixture_html("fachlehrer_liste.html")
+    detail = fixture_html("fachlehrer_thread.html")
+    client = mocker.Mock()
+    client.seite_holen.side_effect = lambda pfad: detail if pfad.endswith("21/5001") else liste
+    client.anhang_holen.side_effect = lambda url: b"x"
+    kontext = _letzte_kontext(client, tmp_path, ("fachlehrer",), 1)
+    _letzte_abholen(kontext)
+    dateien = list((tmp_path / "los" / "fachlehrer").glob("*.md"))
+    assert [pfad.name for pfad in dateien] == ["2026-11-23-5001-reminder-weihnachtspaeckchenaktion.md"]

@@ -43,6 +43,9 @@ Die Zugangsdaten werden aus `pass` gelesen: erste Zeile = Passwort, `user:`-Zeil
 
     # Ohne Terminal-Ausgabe und ohne Öffnen von Anhängen (z. B. Cron)
     fetch-elternportal --keine-ausgabe
+
+    # Die 5 neuesten Meldungen eines Portals erneut holen (unabhängig vom Lesestatus)
+    fetch-elternportal --letzte 5
 ```
 
 Neue Nachrichten landen unter `output_dir/<portal>/<bereich>/<datum>-<nummer>.md`,
@@ -56,3 +59,8 @@ sonst wird der Anhang geöffnet.
 
 Elternbriefe werden nach dem Abrufen **als gelesen bestätigt** (inklusive des
 Bestands vom Erstlauf); mit `--keine-bestaetigung` wird darauf verzichtet.
+
+Mit `--letzte n` werden die n neuesten Meldungen pro Portal abgeholt – über alle
+Bereiche hinweg nach Datum sortiert, unabhängig davon, ob sie schon bekannt sind.
+Nützlich, um sich die letzten Meldungen erneut anzeigen zu lassen; Kombinierbar
+mit `--keine-bestaetigung` und `--keine-ausgabe`.

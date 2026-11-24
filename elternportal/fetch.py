@@ -2,6 +2,7 @@
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import httpx2
@@ -11,12 +12,23 @@ from click_loglevel import LogLevel
 from elternportal import ausgabe, brett, briefe, kommunikation, render
 from elternportal.client import LoginFehlgeschlagen, PortalClient
 from elternportal.config import BEREICHE_URLS, STATE_DATEI, lade_konfiguration, PortalKonfiguration
-from elternportal.models import Brief
+from elternportal.models import BrettEintrag, Brief, Konversation, ThreadLink
 from elternportal.passstore import zugangsdaten
 from elternportal.render import Dokument
 from elternportal.store import State, pruefsumme, schreibe_dokument, speichere_anhaenge
 
 log = logging.getLogger(__name__)
+
+_BEREICHE = {
+    "elternbriefe": ("Elternbriefe", briefe.ist_briefe_seite, briefe.parse_briefe, render.brief_dokument),
+    "brett": ("Schwarzes Brett", brett.ist_brett_seite, brett.parse_brett, render.brett_dokument),
+    "klassenleitung": (
+        "Klassenleitung",
+        kommunikation.ist_klassenleitung_seite,
+        kommunikation.parse_klassenleitung,
+        render.konversation_dokument,
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -31,6 +43,16 @@ class LaufKontext:
     trocken: bool
     bestaetigen: bool
     ausgeben: bool
+    letzte: int
+
+
+@dataclass(frozen=True)
+class Kandidat:
+    """One parsed message candidate for --letzte runs."""
+
+    bereich: str
+    datum: datetime
+    eintrag: BrettEintrag | Brief | Konversation | ThreadLink
 
 
 @click.command()
@@ -53,9 +75,22 @@ class LaufKontext:
     default=False,
     help="Neue Meldungen weder im Terminal ausgeben noch Anhänge öffnen.",
 )
+@click.option(
+    "--letzte",
+    "letzte",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Die n neuesten Meldungen pro Portal abholen, unabhängig vom Lesestatus (0 = nur neue).",
+)
 @click.option("--log-level", "-l", type=LogLevel(), default=logging.WARNING)
 def main(
-    slugs: tuple[str, ...], config_pfad: Path | None, trocken: bool, bestaetigen: bool, ausgeben: bool, log_level: int
+    slugs: tuple[str, ...],
+    config_pfad: Path | None,
+    trocken: bool,
+    bestaetigen: bool,
+    ausgeben: bool,
+    letzte: int | None,
+    log_level: int,
 ) -> None:
     """Neue Nachrichten aus den Eltern-Portal/en als Markdown abholen."""
     logging.basicConfig(level=log_level)
@@ -67,12 +102,14 @@ def main(
     for portal in konfig.portale:
         if slugs and portal.slug not in slugs:
             continue
-        _portal_abholen(portal, konfig.output_dir, state, trocken, not bestaetigen, not ausgeben)
+        _portal_abholen(portal, konfig.output_dir, state, trocken, not bestaetigen, not ausgeben, letzte or 0)
     if not trocken:
         state.sichern()
 
 
-def _portal_abholen(portal, output_dir: Path, state: State, trocken: bool, bestaetigen: bool, ausgeben: bool) -> None:
+def _portal_abholen(
+    portal, output_dir: Path, state: State, trocken: bool, bestaetigen: bool, ausgeben: bool, letzte: int
+) -> None:
     try:
         benutzer, passwort = zugangsdaten(portal.pass_eintrag)
         client = PortalClient(portal.slug, benutzer, passwort)
@@ -85,9 +122,12 @@ def _portal_abholen(portal, output_dir: Path, state: State, trocken: bool, besta
         for kind_id, kind_name in kinder:
             if len(kinder) > 1 and kind_id:
                 client.kind_waehlen(kind_id)
-            kontext = LaufKontext(client, portal, kind_name, output_dir, state, trocken, bestaetigen, ausgeben)
-            for bereich in portal.bereiche:
-                _bereich_abholen(kontext, bereich)
+            kontext = LaufKontext(client, portal, kind_name, output_dir, state, trocken, bestaetigen, ausgeben, letzte)
+            if letzte:
+                _letzte_abholen(kontext)
+            else:
+                for bereich in portal.bereiche:
+                    _bereich_abholen(kontext, bereich)
     except (LoginFehlgeschlagen, httpx2.HTTPError) as fehler:
         click.secho(f"Portal {portal.slug} abgebrochen: {fehler}", err=True, fg="red")
     finally:
@@ -96,32 +136,78 @@ def _portal_abholen(portal, output_dir: Path, state: State, trocken: bool, besta
 
 def _bereich_abholen(kontext: LaufKontext, bereich: str) -> None:
     seite = kontext.client.seite_holen(BEREICHE_URLS[bereich])
-    if bereich == "elternbriefe":
-        brief_liste = _listen_abholen(
-            kontext, bereich, seite, "Elternbriefe", briefe.ist_briefe_seite, briefe.parse_briefe, render.brief_dokument
-        )
-        _briefe_bestaetigen(kontext, brief_liste)
-    elif bereich == "brett":
-        _listen_abholen(
-            kontext, bereich, seite, "Schwarzes Brett", brett.ist_brett_seite, brett.parse_brett, render.brett_dokument
-        )
-    elif bereich == "klassenleitung":
-        _listen_abholen(
-            kontext,
-            bereich,
-            seite,
-            "Klassenleitung",
-            kommunikation.ist_klassenleitung_seite,
-            kommunikation.parse_klassenleitung,
-            render.konversation_dokument,
-        )
-    elif bereich == "fachlehrer":
+    if bereich == "fachlehrer":
         _fachlehrer_abholen(kontext, seite)
+        return
+    name, ist_seite, parse, dokument_fabrik = _BEREICHE[bereich]
+    brief_liste = _listen_abholen(kontext, bereich, seite, name, ist_seite, parse, dokument_fabrik)
+    if bereich == "elternbriefe":
+        _briefe_bestaetigen(kontext, brief_liste)
+
+
+def _letzte_abholen(kontext: LaufKontext) -> None:
+    """Fetch the n most recent messages per portal regardless of read state."""
+    kandidaten: list[Kandidat] = []
+    brief_liste: list[Brief] = []
+    for bereich in kontext.portal.bereiche:
+        seite = kontext.client.seite_holen(BEREICHE_URLS[bereich])
+        _bereich_sammeln(kontext, bereich, seite, kandidaten, brief_liste)
+    kandidaten.sort(key=lambda kandidat: kandidat.datum, reverse=True)
+    for kandidat in kandidaten[: kontext.letzte]:
+        _kandidat_speichern(kontext, kandidat)
+    click.secho(f"{kontext.portal.slug}: {min(len(kandidaten), kontext.letzte)} letzte Meldungen geholt.", fg="green")
+    _briefe_bestaetigen(kontext, brief_liste)
+
+
+def _bereich_sammeln(
+    kontext: LaufKontext, bereich: str, seite: str, kandidaten: list[Kandidat], brief_liste: list[Brief]
+) -> None:
+    if bereich == "fachlehrer":
+        if not kommunikation.ist_fachlehrer_seite(seite):
+            click.secho(f"{kontext.portal.slug}: Bereich Fachlehrer nicht verfügbar.", fg="yellow")
+            return
+        kandidaten.extend(
+            Kandidat("fachlehrer", link.letzte_nachricht, link) for link in kommunikation.parse_thread_links(seite)
+        )
+        return
+    name, ist_seite, parse, _ = _BEREICHE[bereich]
+    if not ist_seite(seite):
+        click.secho(f"{kontext.portal.slug}: Bereich {name} nicht verfügbar.", fg="yellow")
+        return
+    eintraege = parse(seite)
+    kandidaten.extend(Kandidat(bereich, _datum_von(eintrag), eintrag) for eintrag in eintraege)
+    if bereich == "elternbriefe":
+        brief_liste.extend(eintrag for eintrag in eintraege if isinstance(eintrag, Brief))
+
+
+def _kandidat_speichern(kontext: LaufKontext, kandidat: Kandidat) -> None:
+    eintrag = kandidat.eintrag
+    if isinstance(eintrag, ThreadLink):
+        thread = kommunikation.parse_thread(
+            kontext.client.seite_holen(f"meldungen/kommunikation_fachlehrer/{eintrag.lehrer_id}/{eintrag.thread_id}"),
+            eintrag,
+        )
+        dokument = render.thread_dokument(thread, kontext.kind)
+        summe = render.threadlink_pruefsumme(eintrag)
+    elif isinstance(eintrag, Brief):
+        dokument = render.brief_dokument(eintrag, kontext.kind)
+        summe = pruefsumme(eintrag)
+    elif isinstance(eintrag, BrettEintrag):
+        dokument = render.brett_dokument(eintrag, kontext.kind)
+        summe = pruefsumme(eintrag)
+    else:
+        dokument = render.konversation_dokument(eintrag, kontext.kind)
+        summe = pruefsumme(eintrag)
+    _dokument_speichern(kontext, kandidat.bereich, dokument, summe)
+
+
+def _datum_von(eintrag: BrettEintrag | Brief | Konversation | ThreadLink) -> datetime:
+    return getattr(eintrag, "letzte_nachricht", None) or getattr(eintrag, "datum", datetime.min)
 
 
 def _listen_abholen(
     kontext: LaufKontext, bereich: str, seite: str, name: str, ist_seite, parse, dokument_fabrik
-) -> list:
+) -> list[Brief]:
     """Fetch one list section, save new entries and return all parsed entries."""
     if not ist_seite(seite):
         click.secho(f"{kontext.portal.slug}: Bereich {name} nicht verfügbar.", fg="yellow")
@@ -137,20 +223,6 @@ def _listen_abholen(
             neu += 1
     _bereich_melden(kontext, name, neu)
     return eintraege
-
-
-def _briefe_bestaetigen(kontext: LaufKontext, brief_liste: list[Brief]) -> None:
-    """Confirm receipt of every unconfirmed Elternbrief, including known ones."""
-    if kontext.trocken or not kontext.bestaetigen:
-        return
-    offene = [brief for brief in brief_liste if not brief.bestaetigt and brief.eb_id]
-    for brief in offene:
-        try:
-            kontext.client.brief_bestaetigen(brief.eb_id)
-        except httpx2.HTTPError as fehler:
-            click.secho(f"Bestätigung fehlgeschlagen für #{brief.nummer}: {fehler}", err=True, fg="red")
-    if offene:
-        click.secho(f"{kontext.portal.slug}: {len(offene)} Elternbriefe als gelesen bestätigt.", fg="cyan")
 
 
 def _fachlehrer_abholen(kontext: LaufKontext, seite: str) -> None:
@@ -169,6 +241,20 @@ def _fachlehrer_abholen(kontext: LaufKontext, seite: str) -> None:
         if _dokument_speichern(kontext, "fachlehrer", render.thread_dokument(thread, kontext.kind), summe):
             neu += 1
     _bereich_melden(kontext, "Fachlehrer", neu)
+
+
+def _briefe_bestaetigen(kontext: LaufKontext, brief_liste: list[Brief]) -> None:
+    """Confirm receipt of every unconfirmed Elternbrief, including known ones."""
+    if kontext.trocken or not kontext.bestaetigen:
+        return
+    offene = [brief for brief in brief_liste if not brief.bestaetigt and brief.eb_id]
+    for brief in offene:
+        try:
+            kontext.client.brief_bestaetigen(brief.eb_id)
+        except httpx2.HTTPError as fehler:
+            click.secho(f"Bestätigung fehlgeschlagen für #{brief.nummer}: {fehler}", err=True, fg="red")
+    if offene:
+        click.secho(f"{kontext.portal.slug}: {len(offene)} Elternbriefe als gelesen bestätigt.", fg="cyan")
 
 
 def _dokument_speichern(kontext: LaufKontext, bereich: str, dokument: Dokument, summe: str) -> bool:
