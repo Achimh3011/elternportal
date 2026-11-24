@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.ty/
+.idea/
+
+# Never store personal data or secrets in the repository
+nachrichten/
+state.json
+tmp/

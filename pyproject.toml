@@ -1,0 +1,111 @@
+# pyproject.toml – PEP 621 version for uv
+[project]
+name = "elternportal"
+version = "0.1.0"
+description = "Fetch new messages from eltern-portal.org school portals as Markdown"
+readme = "README.md"
+requires-python = ">=3.14,<4.0"
+license = "GPL-3.0-or-later"
+authors = [
+    {name = "Achim Herwig", email = "achim.herwig@wodca.de"},
+]
+
+# ----------------------------------------------------------------------
+# Runtime dependencies
+# ----------------------------------------------------------------------
+dependencies = [
+    "click-loglevel>=0.7.0",
+    "httpx2>=2.16.2",
+    "lxml>=6.1.0",
+    "platformdirs>=4.4.0",
+    "rich-click>=1.9.9",
+]
+
+# ----------------------------------------------------------------------
+# Optional (dev) dependencies
+# ----------------------------------------------------------------------
+[dependency-groups]
+dev = [
+    "prek>=0.5.11",
+    "pytest>=9.0.3",
+    "pytest-mock>=3.15.1",
+    "ruff>=0.17.0",
+    "ty>=0.0.95",
+]
+
+# ----------------------------------------------------------------------
+# Console scripts
+# ----------------------------------------------------------------------
+[project.scripts]
+fetch-elternportal = "elternportal.fetch:main"
+
+[build-system]
+requires = ["uv_build>=0.9.16"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
+
+# ----------------------------------------------------------------------
+# Ruff / lint configuration
+# ----------------------------------------------------------------------
+[tool.ruff]
+target-version = "py314"
+line-length = 120
+fix = false
+# Do not reformat Python code blocks inside documentation files:
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = [
+    "YTT",   # flake8-2020
+    "S",     # flake8-bandit
+    "B",     # flake8-bugbear
+    "A",     # flake8-builtins
+    "C4",    # flake8-comprehensions
+    "T10",   # flake8-debugger
+    "SIM",   # flake8-simplify
+    "C90",   # mccabe
+    "E", "W", # pycodestyle
+    "F",     # pyflakes
+    "PGH",   # pygrep-hooks
+    "UP",    # pyupgrade
+    "RUF",   # ruff
+    "TRY",   # tryceratops
+]
+ignore = [
+    "E501",   # LineTooLong
+    "E731",   # DoNotAssignLambda
+    "TRY003", # Avoid specifying long messages outside the exception class
+    # CLI wrapper scripts deliberately invoke system binaries via PATH:
+    "S603", # subprocess call - check for execution of untrusted input
+    "S607", # start process with partial executable path
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101", # asserts are fine in tests
+    "S105", # test fixtures contain fake credential paths, not real passwords
+]
+
+[tool.ruff.format]
+preview = false
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.ty.terminal]
+output-format = "concise"
+
+# lxml is a compiled extension without stubs:
+[[tool.ty.overrides]]
+include = [
+    "elternportal/brett.py",
+    "elternportal/briefe.py",
+    "elternportal/extrakt.py",
+    "elternportal/kommunikation.py",
+    "elternportal/markdown.py",
+]
+
+[tool.ty.overrides.analysis]
+allowed-unresolved-imports = ["lxml.etree"]

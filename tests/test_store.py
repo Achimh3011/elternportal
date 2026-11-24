@@ -1,0 +1,142 @@
+"""Tests for state tracking and Markdown writing."""
+
+from datetime import datetime
+from pathlib import Path
+
+from elternportal.models import Anhang
+from elternportal.render import Dokument
+from elternportal.store import AnhangInfo, State, pruefsumme, schreibe_dokument, speichere_anhaenge
+
+
+def test_state_zyklus(tmp_path):
+    state = State(tmp_path / "state.json")
+    assert not state.ist_bekannt("los", "elternbriefe", "1", "abc")
+    state.merken("los", "elternbriefe", "1", "abc")
+    state.sichern()
+    geladen = State(tmp_path / "state.json")
+    assert geladen.ist_bekannt("los", "elternbriefe", "1", "abc")
+    assert not geladen.ist_bekannt("los", "elternbriefe", "1", "anders")
+    assert not geladen.ist_bekannt("los", "brett", "1", "abc")
+
+
+def test_pruefsumme_ist_stabil_und_inhaltssensitiv():
+    from elternportal.models import Brief
+
+    brief = Brief(
+        ident="1",
+        nummer="1",
+        titel="Titel",
+        datum=datetime(2026, 1, 1),
+        klassen="5b",
+        bestaetigt=False,
+        body_html="<p>Hi</p>",
+        anhaenge=(),
+    )
+    gleich = Brief(
+        ident="1",
+        nummer="1",
+        titel="Titel",
+        datum=datetime(2026, 1, 1),
+        klassen="5b",
+        bestaetigt=False,
+        body_html="<p>Hi</p>",
+        anhaenge=(),
+    )
+    anders = Brief(
+        ident="1",
+        nummer="1",
+        titel="Titel",
+        datum=datetime(2026, 1, 1),
+        klassen="5b",
+        bestaetigt=False,
+        body_html="<p>Hi!</p>",
+        anhaenge=(),
+    )
+    assert pruefsumme(brief) == pruefsumme(gleich)
+    assert pruefsumme(brief) != pruefsumme(anders)
+
+
+def test_pruefsumme_ignoriert_session_csrf():
+    """Attachment URLs contain a per-session CSRF token that must not change sums."""
+    from elternportal.models import Brief
+
+    def brief(csrf: str) -> Brief:
+        return Brief(
+            ident="911",
+            nummer="11",
+            titel="Titel",
+            datum=datetime(2026, 1, 1),
+            klassen="5b",
+            bestaetigt=True,
+            body_html="<p>Hi</p>",
+            anhaenge=(Anhang(url=f"aktuelles/get_file/?repo=1&csrf={csrf}", name="a.pdf"),),
+        )
+
+    assert pruefsumme(brief("aaaabbbbccccdddd")) == pruefsumme(brief("0123456789abcdef"))
+    assert pruefsumme(brief("aaaabbbbccccdddd")) != pruefsumme(brief("x"))
+
+
+def test_dokument_schreiben(tmp_path):
+    dokument = Dokument(
+        ident="912",
+        bereich="elternbriefe",
+        datei_kurzel="12-kuchenbuffet-beim-sommerfest",
+        titel='Kuchenbuffet "beim Sommerfest"',
+        datum=datetime(2025, 7, 5, 8, 15),
+        felder={"kind": "Max Musterkind"},
+        body="Bringt Kuchen mit.",
+    )
+    datei = schreibe_dokument(dokument, "los", tmp_path, [])
+    assert datei.name == "2025-07-05-12-kuchenbuffet-beim-sommerfest.md"
+    inhalt = datei.read_text(encoding="utf-8")
+    assert inhalt.startswith("---\n")
+    assert 'portal: "los"' in inhalt
+    assert 'titel: "Kuchenbuffet \\"beim Sommerfest\\""' in inhalt
+    assert 'kind: "Max Musterkind"' in inhalt
+    assert "datum: 2025-07-05 08:15" in inhalt
+    assert '# Kuchenbuffet "beim Sommerfest"' in inhalt
+    assert "Bringt Kuchen mit." in inhalt
+    assert "## Anhänge" not in inhalt
+
+
+def test_dokument_mit_anhang_inline(tmp_path):
+    pdf = tmp_path / "flyer.pdf"
+    pdf.write_bytes(b"%PDF-fake")
+    infos = [AnhangInfo(anhang=Anhang(url="u", name="flyer.pdf"), pfad=pdf, text="Inhalt des Flyers")]
+    dokument = Dokument(
+        ident="1",
+        bereich="brett",
+        datei_kurzel="flyer",
+        titel="Flyer",
+        datum=datetime(2026, 11, 18),
+        body="Siehe Anhang.",
+    )
+    inhalt = schreibe_dokument(dokument, "los", tmp_path, infos).read_text(encoding="utf-8")
+    assert "- [flyer.pdf](flyer.pdf)" in inhalt
+    assert "### Text aus flyer.pdf" in inhalt
+    assert "Inhalt des Flyers" in inhalt
+
+
+def test_anhang_speichern_und_langer_text(tmp_path, mocker):
+    datei = tmp_path / "lang.txt"
+    datei.write_text("x" * 100)
+    mocker.patch("elternportal.store.extrahiere_text", return_value="y" * 6000)
+    dokument = Dokument(
+        ident="1", bereich="brett", datei_kurzel="eintrag", titel="Eintrag", datum=datetime(2026, 11, 18), body="Körper"
+    )
+    anhang = Anhang(url="https://portal/file", name="lange datei.txt")
+    infos = speichere_anhaenge(tmp_path, (anhang,), {anhang.url: b"in"})
+    assert (tmp_path / "lange datei.txt").read_bytes() == b"in"
+    assert infos[0].text == "y" * 6000
+    inhalt = schreibe_dokument(dokument, "los", tmp_path, infos).read_text(encoding="utf-8")
+    assert "Vollständiger Text in lange datei.txt.txt" in inhalt
+    assert (tmp_path / "lange datei.txt.txt").exists()
+
+
+def test_dokument_ohne_datum(tmp_path: Path):
+    dokument = Dokument(
+        ident="1", bereich="brett", datei_kurzel="eintrag", titel="Ohne Datum", datum=datetime.min, body="Körper"
+    )
+    datei = schreibe_dokument(dokument, "los", tmp_path, [])
+    assert datei.name == "ohne-datum-eintrag.md"
+    assert "datum:" not in datei.read_text(encoding="utf-8")
