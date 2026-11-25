@@ -1,13 +1,21 @@
 """Tests for sending new messages as mail."""
 
+from typing import Any
+
 from elternportal.config import SmtpKonfiguration
 from elternportal.mail import sende_mail
 from elternportal.models import Anhang
 from elternportal.store import AnhangInfo
 
 
-def _smtp(**kwargs) -> SmtpKonfiguration:
-    werte = {"server": "mail.example.com", "port": 587, "starttls": True, "pass_eintrag": "", "absender": ""}
+def _smtp(**kwargs: Any) -> SmtpKonfiguration:
+    werte: dict[str, Any] = {
+        "server": "mail.example.com",
+        "port": 587,
+        "starttls": True,
+        "pass_eintrag": "",
+        "absender": "",
+    }
     werte.update(kwargs)
     return SmtpKonfiguration(**werte)
 

@@ -87,12 +87,18 @@ empfaenger = eltern@example.com, oma@example.com
 server = mail.example.com
 port = 587
 starttls = yes
+benutzer = mc12345
 absender = elternportal@example.com
 pass_eintrag = mail/elternportal@example.com
 ```
 
 In `[SMTP]` sind `server` erforderlich sowie `port` (Standard 587),
-`starttls` (Standard yes) und `absender` (Standard: SMTP-Benutzer) optional.
+`starttls` (Standard yes), `benutzer` und `absender` optional. `benutzer` ist
+der SMTP-Login-User – falls gesetzt, übersteuert er den Benutzernamen aus dem
+Credential-Store, und der `pass`-Eintrag braucht nur das Passwort (erste Zeile,
+ohne `user:`-Zeile). `absender` ist die From-Adresse der Mails und fällt
+andersfalls auf den Login-User zurück.
+
 Das SMTP-Passwort kommt wie bei den Portalen aus `pass` (`pass_eintrag`,
 erste Zeile = Passwort, `user:`-Zeile = Benutzername) oder – ohne `pass_eintrag`
 bzw. mit `--keyring` – aus dem System-Keyring:

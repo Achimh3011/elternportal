@@ -273,3 +273,37 @@ def test_smtp_zugangsdaten_aus_keyring_ohne_eintrag(mocker, tmp_path):
     von_keyring = mocker.patch("elternportal.fetch.keyring_store.zugangsdaten", return_value=("smtp", "geheim"))
     assert _smtp_zugangsdaten(_smtp_kontext(tmp_path, (), mail=False).smtp, False) == ("smtp", "geheim")
     von_keyring.assert_called_once_with("smtp")
+
+
+def test_smtp_benutzer_uebersteuert_pass_zeile(mocker, tmp_path):
+    import dataclasses
+
+    from elternportal.fetch import _smtp_zugangsdaten
+
+    von_pass = mocker.patch("elternportal.fetch.passstore.passwort", return_value="geheim")
+    smtp = dataclasses.replace(
+        _smtp_kontext(tmp_path, (), mail=False).smtp, benutzer="mc12345", pass_eintrag="mail/smtp"
+    )
+    assert _smtp_zugangsdaten(smtp, False) == ("mc12345", "geheim")
+    von_pass.assert_called_once_with("mail/smtp")
+
+
+def test_smtp_benutzer_uebersteuert_keyring_user(mocker, tmp_path):
+    import dataclasses
+
+    from elternportal.fetch import _smtp_zugangsdaten
+
+    mocker.patch("elternportal.fetch.keyring_store.zugangsdaten", return_value=("keyring-user", "geheim"))
+    smtp = dataclasses.replace(_smtp_kontext(tmp_path, (), mail=False).smtp, benutzer="mc12345")
+    assert _smtp_zugangsdaten(smtp, False) == ("mc12345", "geheim")
+
+
+def test_ohne_smtp_benutzer_wird_pass_user_gelesen(mocker, tmp_path):
+    import dataclasses
+
+    from elternportal.fetch import _smtp_zugangsdaten
+
+    von_pass = mocker.patch("elternportal.fetch.passstore.zugangsdaten", return_value=("smtp-user", "geheim"))
+    smtp = dataclasses.replace(_smtp_kontext(tmp_path, (), mail=False).smtp, pass_eintrag="mail/smtp")
+    assert _smtp_zugangsdaten(smtp, False) == ("smtp-user", "geheim")
+    von_pass.assert_called_once_with("mail/smtp")

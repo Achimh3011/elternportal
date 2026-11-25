@@ -79,7 +79,8 @@ def test_smtp_sektion_wird_geparst(config_umgebung, tmp_path):
     datei = tmp_path / "smtp.conf"
     datei.write_text(
         "[los]\npass_eintrag = familie/los\n"
-        "[SMTP]\nserver = mail.example.com\nport = 587\npass_eintrag = mail/smtp\nabsender = absender@example.com\n",
+        "[SMTP]\nserver = mail.example.com\nport = 587\npass_eintrag = mail/smtp\nabsender = absender@example.com\n"
+        "benutzer = mc12345\n",
         encoding="utf-8",
     )
     konfig = lade_konfiguration(datei)
@@ -89,7 +90,17 @@ def test_smtp_sektion_wird_geparst(config_umgebung, tmp_path):
     assert konfig.smtp.starttls is True
     assert konfig.smtp.pass_eintrag == "mail/smtp"
     assert konfig.smtp.absender == "absender@example.com"
+    assert konfig.smtp.benutzer == "mc12345"
     assert [portal.slug for portal in konfig.portale] == ["los"]
+
+
+def test_smtp_ohne_benutzer_und_absender_leer(config_umgebung, tmp_path):
+    datei = tmp_path / "smtp-minimal.conf"
+    datei.write_text("[los]\npass_eintrag = familie/los\n[SMTP]\nserver = mail.example.com\n", encoding="utf-8")
+    konfig = lade_konfiguration(datei)
+    assert konfig.smtp is not None
+    assert konfig.smtp.benutzer == ""
+    assert konfig.smtp.absender == ""
 
 
 def test_ohne_smtp_sektion_ist_smtp_none(config_umgebung, tmp_path):

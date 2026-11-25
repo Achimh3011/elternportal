@@ -410,9 +410,17 @@ def _mail_versenden(kontext: LaufKontext, dokument: Dokument, infos: list) -> No
 
 
 def _smtp_zugangsdaten(smtp: SmtpKonfiguration, keyring_erzwingen: bool) -> tuple[str, str]:
-    """Read SMTP credentials from pass or the keyring, whichever applies."""
+    """Read SMTP credentials from pass or the keyring, whichever applies.
+
+    An explicitly configured `benutzer` wins over the username stored in
+    the credential store; with `pass` the entry then only needs the
+    password (no `user:` line).
+    """
     if keyring_erzwingen or not smtp.pass_eintrag:
-        return keyring_store.zugangsdaten("smtp")
+        benutzer, passwort = keyring_store.zugangsdaten("smtp")
+        return smtp.benutzer or benutzer, passwort
+    if smtp.benutzer:
+        return smtp.benutzer, passstore.passwort(smtp.pass_eintrag)
     return passstore.zugangsdaten(smtp.pass_eintrag)
 
 

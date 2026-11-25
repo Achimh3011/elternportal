@@ -48,6 +48,7 @@ class SmtpKonfiguration:
     starttls: bool
     pass_eintrag: str
     absender: str
+    benutzer: str = ""
 
 
 @dataclass(frozen=True)
@@ -134,6 +135,7 @@ def _smtp(parser: ConfigParser) -> SmtpKonfiguration | None:
         starttls=sektion.getboolean("starttls", fallback=True),
         pass_eintrag=sektion.get("pass_eintrag", fallback=""),
         absender=sektion.get("absender", fallback="").strip(),
+        benutzer=sektion.get("benutzer", fallback="").strip(),
     )
 
 

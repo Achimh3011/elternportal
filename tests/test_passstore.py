@@ -4,7 +4,7 @@ from subprocess import CompletedProcess
 
 import pytest
 
-from elternportal.passstore import zugangsdaten
+from elternportal.passstore import passwort, zugangsdaten
 
 
 def _pass_result(stdout: str) -> CompletedProcess:
@@ -54,3 +54,17 @@ def test_leerer_eintrag_wirft_fehler(mocker):
     mocker.patch("elternportal.passstore.run", return_value=_pass_result("\n\n"))
     with pytest.raises(RuntimeError, match="leer"):
         zugangsdaten("familie/portal")
+
+
+def test_passwort_ohne_user_zeile(mocker):
+    mocker.patch(
+        "elternportal.passstore.run",
+        return_value=_pass_result("geheim\nsite: https://portal.example.org\n"),
+    )
+    assert passwort("mail/smtp") == "geheim"
+
+
+def test_passwort_leerer_eintrag_wirft_fehler(mocker):
+    mocker.patch("elternportal.passstore.run", return_value=_pass_result("gpg: Hinweis: irgendwas\n"))
+    with pytest.raises(RuntimeError, match="leer"):
+        passwort("mail/smtp")
