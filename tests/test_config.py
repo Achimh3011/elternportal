@@ -73,3 +73,53 @@ def test_output_dir_pro_portal_ueberschreibbar(config_umgebung, tmp_path):
     konfig = lade_konfiguration(datei)
     assert konfig.portale[0].output_dir == Path.home() / "elternportal-nachrichten"
     assert konfig.portale[1].output_dir == tmp_path / "mwg-nachrichten"
+
+
+def test_smtp_sektion_wird_geparst(config_umgebung, tmp_path):
+    datei = tmp_path / "smtp.conf"
+    datei.write_text(
+        "[los]\npass_eintrag = familie/los\n"
+        "[SMTP]\nserver = mail.example.com\nport = 587\npass_eintrag = mail/smtp\nabsender = absender@example.com\n",
+        encoding="utf-8",
+    )
+    konfig = lade_konfiguration(datei)
+    assert konfig.smtp is not None
+    assert konfig.smtp.server == "mail.example.com"
+    assert konfig.smtp.port == 587
+    assert konfig.smtp.starttls is True
+    assert konfig.smtp.pass_eintrag == "mail/smtp"
+    assert konfig.smtp.absender == "absender@example.com"
+    assert [portal.slug for portal in konfig.portale] == ["los"]
+
+
+def test_ohne_smtp_sektion_ist_smtp_none(config_umgebung, tmp_path):
+    datei = tmp_path / "ohne-smtp.conf"
+    datei.write_text("[los]\npass_eintrag = familie/los\n", encoding="utf-8")
+    konfig = lade_konfiguration(datei)
+    assert konfig.smtp is None
+
+
+def test_smtp_ohne_server_wirft_fehler(config_umgebung, tmp_path):
+    datei = tmp_path / "smtp-fehler.conf"
+    datei.write_text("[los]\npass_eintrag = familie/los\n[SMTP]\nport = 587\n", encoding="utf-8")
+    with pytest.raises(click.ClickException, match="server fehlt"):
+        lade_konfiguration(datei)
+
+
+def test_empfaenger_werden_pro_portal_gelesen(config_umgebung, tmp_path):
+    datei = tmp_path / "empfaenger.conf"
+    datei.write_text(
+        "[los]\npass_eintrag = familie/los\nempfaenger = an@example.com, noch@example.com\n"
+        "[mwg]\npass_eintrag = familie/mwg\n",
+        encoding="utf-8",
+    )
+    konfig = lade_konfiguration(datei)
+    assert konfig.portale[0].empfaenger == ("an@example.com", "noch@example.com")
+    assert konfig.portale[1].empfaenger == ()
+
+
+def test_ungueltiger_empfaenger_wirft_fehler(config_umgebung, tmp_path):
+    datei = tmp_path / "empfaenger-fehler.conf"
+    datei.write_text("[los]\npass_eintrag = familie/los\nempfaenger = keine-adresse\n", encoding="utf-8")
+    with pytest.raises(click.ClickException, match="ungültige Empfänger"):
+        lade_konfiguration(datei)

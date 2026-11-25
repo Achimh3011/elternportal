@@ -182,3 +182,94 @@ def test_ohne_pass_eintrag_wird_keyring_verwendet(mocker, tmp_path):
     von_keyring = mocker.patch("elternportal.fetch.keyring_store.zugangsdaten", return_value=("eltern", "geheim"))
     assert _zugangsdaten(_portal("", tmp_path), False) == ("eltern", "geheim")
     von_keyring.assert_called_once_with("los")
+
+
+def _smtp_kontext(tmp_path, empfaenger, mail=True):
+    import dataclasses
+
+    from elternportal.config import SmtpKonfiguration
+
+    portal = dataclasses.replace(_portal("familie/los", tmp_path), empfaenger=empfaenger)
+    smtp = SmtpKonfiguration(server="mail.example.com", port=587, starttls=True, pass_eintrag="", absender="")
+    return dataclasses.replace(_kontext(None, tmp_path), portal=portal, smtp=smtp, mail=mail)
+
+
+def test_dokument_wird_gemailt_wenn_mail_aktiv(mocker, tmp_path):
+    from datetime import datetime as _datetime
+
+    from elternportal.fetch import _dokument_speichern
+    from elternportal.render import Dokument
+
+    sende = mocker.patch("elternportal.fetch.mail.sende_mail")
+    mocker.patch("elternportal.fetch.keyring_store.zugangsdaten", return_value=("smtp", "geheim"))
+    dokument = Dokument(
+        ident="912",
+        bereich="elternbriefe",
+        datei_kurzel="12-titel",
+        titel="Titel",
+        datum=_datetime(2026, 11, 25),
+        body="Text",
+    )
+    assert _dokument_speichern(_smtp_kontext(tmp_path, ("an@example.com",)), "elternbriefe", dokument, "summe") is True
+    sende.assert_called_once()
+    betreff = sende.call_args.args[4]
+    assert betreff == "[los] Titel"
+
+
+def test_ohne_empfaenger_wird_keine_mail_gesendet(mocker, tmp_path):
+    from datetime import datetime as _datetime
+
+    from elternportal.fetch import _dokument_speichern
+    from elternportal.render import Dokument
+
+    sende = mocker.patch("elternportal.fetch.mail.sende_mail")
+    dokument = Dokument(
+        ident="912",
+        bereich="elternbriefe",
+        datei_kurzel="12-titel",
+        titel="Titel",
+        datum=_datetime(2026, 11, 25),
+        body="Text",
+    )
+    assert _dokument_speichern(_smtp_kontext(tmp_path, ()), "elternbriefe", dokument, "summe") is True
+    sende.assert_not_called()
+
+
+def test_mailfehler_bricht_speicherung_nicht_ab(mocker, tmp_path):
+    import smtplib
+    from datetime import datetime as _datetime
+
+    from elternportal.fetch import _dokument_speichern
+    from elternportal.render import Dokument
+
+    mocker.patch("elternportal.fetch.keyring_store.zugangsdaten", return_value=("smtp", "geheim"))
+    mocker.patch("elternportal.fetch.mail.sende_mail", side_effect=smtplib.SMTPException("boom"))
+    dokument = Dokument(
+        ident="912",
+        bereich="elternbriefe",
+        datei_kurzel="12-titel",
+        titel="Titel",
+        datum=_datetime(2026, 11, 25),
+        body="Text",
+    )
+    assert _dokument_speichern(_smtp_kontext(tmp_path, ("an@example.com",)), "elternbriefe", dokument, "summe") is True
+
+
+def test_smtp_zugangsdaten_aus_pass_wenn_eintrag_gesetzt(mocker, tmp_path):
+    import dataclasses
+
+    from elternportal.fetch import _smtp_zugangsdaten
+
+    von_pass = mocker.patch("elternportal.fetch.passstore.zugangsdaten", return_value=("smtp", "geheim"))
+    kontext = _smtp_kontext(tmp_path, (), mail=False)
+    smtp = dataclasses.replace(kontext.smtp, pass_eintrag="mail/smtp")
+    assert _smtp_zugangsdaten(smtp, False) == ("smtp", "geheim")
+    von_pass.assert_called_once_with("mail/smtp")
+
+
+def test_smtp_zugangsdaten_aus_keyring_ohne_eintrag(mocker, tmp_path):
+    from elternportal.fetch import _smtp_zugangsdaten
+
+    von_keyring = mocker.patch("elternportal.fetch.keyring_store.zugangsdaten", return_value=("smtp", "geheim"))
+    assert _smtp_zugangsdaten(_smtp_kontext(tmp_path, (), mail=False).smtp, False) == ("smtp", "geheim")
+    von_keyring.assert_called_once_with("smtp")

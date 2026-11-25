@@ -63,6 +63,48 @@ Nicht konfigurierte Bereiche werden gar nicht erst abgefragt; die Warnung
 `output_dir` landen die Nachrichten eines Portals unter
 `<output_dir>/<portal-slug>/<bereich>/`.
 
+### Mailversand
+
+Neu gespeicherte Meldungen können mit `--mail` als E-Mail versendet werden –
+eine Mail pro Meldung, Anhänge als echte MIME-Anhänge. Der Mailserver wird
+global in der reservierten `[SMTP]`-Sektion konfiguriert, die Empfänger pro
+Portal:
+
+```ini
+[DEFAULT]
+bereiche = elternbriefe, fachlehrer, klassenleitung, brett
+output_dir = ~/elternportal-nachrichten
+
+[gym-a]
+pass_eintrag = familie/eltern@gym-a
+empfaenger = eltern@example.com
+
+[gym-b]
+pass_eintrag = familie/eltern@gym-b
+empfaenger = eltern@example.com, oma@example.com
+
+[SMTP]
+server = mail.example.com
+port = 587
+starttls = yes
+absender = elternportal@example.com
+pass_eintrag = mail/elternportal@example.com
+```
+
+In `[SMTP]` sind `server` erforderlich sowie `port` (Standard 587),
+`starttls` (Standard yes) und `absender` (Standard: SMTP-Benutzer) optional.
+Das SMTP-Passwort kommt wie bei den Portalen aus `pass` (`pass_eintrag`,
+erste Zeile = Passwort, `user:`-Zeile = Benutzername) oder – ohne `pass_eintrag`
+bzw. mit `--keyring` – aus dem System-Keyring:
+
+```console
+    python -m keyring set elternportal/smtp <benutzer>
+```
+
+Portale ohne `empfaenger` werden beim Mailversand mit einer Warnung
+übersprungen; `--mail` ohne `[SMTP]`-Sektion bricht mit einer Fehlermeldung ab.
+Einzelne Mailfehler brechen den Lauf nicht ab – die Meldung bleibt gespeichert.
+
 ## Nutzung
 
 ```console
@@ -89,6 +131,9 @@ Nicht konfigurierte Bereiche werden gar nicht erst abgefragt; die Warnung
 
     # Zugangsdaten aus dem System-Keyring lesen (statt aus pass)
     fetch-elternportal --keyring
+
+    # Neue Meldungen zusätzlich als E-Mail versenden
+    fetch-elternportal --neu --mail
 ```
 
 Neue Nachrichten landen unter `output_dir/<portal>/<bereich>/<datum>-<nummer>.md`

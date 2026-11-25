@@ -1,6 +1,7 @@
 """CLI: fetch new messages from all configured portals as Markdown."""
 
 import logging
+import smtplib
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -9,9 +10,15 @@ import httpx2
 import rich_click as click
 from click_loglevel import LogLevel
 
-from elternportal import ausgabe, brett, briefe, keyring_store, kommunikation, passstore, render
+from elternportal import ausgabe, brett, briefe, keyring_store, kommunikation, mail, passstore, render
 from elternportal.client import LoginFehlgeschlagen, PortalClient
-from elternportal.config import BEREICHE_URLS, STATE_DATEI, lade_konfiguration, PortalKonfiguration
+from elternportal.config import (
+    BEREICHE_URLS,
+    STATE_DATEI,
+    lade_konfiguration,
+    PortalKonfiguration,
+    SmtpKonfiguration,
+)
 from elternportal.models import BrettEintrag, Brief, Konversation, ThreadLink
 from elternportal.render import Dokument
 from elternportal.store import State, pruefsumme, schreibe_dokument, speichere_anhaenge
@@ -43,6 +50,9 @@ class LaufKontext:
     bestaetigen: bool
     ausgeben: bool
     letzte: int
+    smtp: SmtpKonfiguration | None = None
+    mail: bool = False
+    keyring_erzwingen: bool = False
 
 
 @dataclass(frozen=True)
@@ -95,6 +105,13 @@ class Kandidat:
     default=False,
     help="Zugangsdaten aus dem System-Keyring lesen, auch wenn ein pass_eintrag konfiguriert ist.",
 )
+@click.option(
+    "--mail",
+    "mail_versenden",
+    is_flag=True,
+    default=False,
+    help="Neu gespeicherte Meldungen als E-Mail versenden (benötigt eine [SMTP]-Sektion in der Konfiguration).",
+)
 @click.option("--log-level", "-l", type=LogLevel(), default=logging.WARNING)
 def main(
     slugs: tuple[str, ...],
@@ -105,6 +122,7 @@ def main(
     ausgeben: bool,
     letzte: int | None,
     keyring_erzwingen: bool,
+    mail_versenden: bool,
     log_level: int,
 ) -> None:
     """Neue Nachrichten aus den Eltern-Portal/en als Markdown abholen."""
@@ -113,12 +131,23 @@ def main(
     unbekannt = set(slugs) - {portal.slug for portal in konfig.portale}
     if unbekannt:
         raise click.ClickException(f"Unbekannte Portale: {', '.join(sorted(unbekannt))}")
+    if mail_versenden and konfig.smtp is None:
+        raise click.ClickException("--mail erfordert eine [SMTP]-Sektion in der Konfiguration.")
     state = State(STATE_DATEI)
     for portal in konfig.portale:
         if slugs and portal.slug not in slugs:
             continue
         _portal_abholen(
-            portal, state, trocken, neu_holen, not bestaetigen, not ausgeben, letzte or 0, keyring_erzwingen
+            portal,
+            state,
+            trocken,
+            neu_holen,
+            not bestaetigen,
+            not ausgeben,
+            letzte or 0,
+            keyring_erzwingen,
+            mail_versenden,
+            konfig.smtp,
         )
     if not trocken:
         state.sichern()
@@ -144,6 +173,8 @@ def _portal_abholen(
     ausgeben: bool,
     letzte: int,
     keyring_erzwingen: bool,
+    mail_versenden: bool,
+    smtp: SmtpKonfiguration | None,
 ) -> None:
     try:
         benutzer, passwort = _zugangsdaten(portal, keyring_erzwingen)
@@ -153,12 +184,25 @@ def _portal_abholen(
         return
     try:
         client.login()
+        if mail_versenden and not portal.empfaenger:
+            click.secho(f"{portal.slug}: kein empfaenger konfiguriert - Mailversand wird übersprungen.", fg="yellow")
         kinder = client.kinder() or [("", "")]
         for kind_id, kind_name in kinder:
             if len(kinder) > 1 and kind_id:
                 client.kind_waehlen(kind_id)
             kontext = LaufKontext(
-                client, portal, kind_name, portal.output_dir, state, trocken, bestaetigen, ausgeben, letzte
+                client,
+                portal,
+                kind_name,
+                portal.output_dir,
+                state,
+                trocken,
+                bestaetigen,
+                ausgeben,
+                letzte,
+                smtp,
+                mail_versenden,
+                keyring_erzwingen,
             )
             if letzte:
                 _letzte_abholen(kontext)
@@ -346,7 +390,30 @@ def _dokument_speichern(kontext: LaufKontext, bereich: str, dokument: Dokument, 
     click.secho(f"Neu: {datei}", fg="green")
     if kontext.ausgeben:
         ausgabe.zeige_dokument(dokument, infos)
+    if kontext.mail and kontext.portal.empfaenger:
+        _mail_versenden(kontext, dokument, infos)
     return True
+
+
+def _mail_versenden(kontext: LaufKontext, dokument: Dokument, infos: list) -> None:
+    """Send one newly saved message as a single mail."""
+    if kontext.smtp is None:
+        return
+    betreff = f"[{kontext.portal.slug}] {dokument.titel}"
+    try:
+        benutzer, passwort = _smtp_zugangsdaten(kontext.smtp, kontext.keyring_erzwingen)
+        mail.sende_mail(kontext.smtp, benutzer, passwort, kontext.portal.empfaenger, betreff, dokument.body, infos)
+    except (RuntimeError, OSError, smtplib.SMTPException) as fehler:
+        click.secho(f"Mailversand fehlgeschlagen für {dokument.titel!r}: {fehler}", err=True, fg="red")
+        return
+    click.secho(f"Mail versendet: {betreff}", fg="cyan")
+
+
+def _smtp_zugangsdaten(smtp: SmtpKonfiguration, keyring_erzwingen: bool) -> tuple[str, str]:
+    """Read SMTP credentials from pass or the keyring, whichever applies."""
+    if keyring_erzwingen or not smtp.pass_eintrag:
+        return keyring_store.zugangsdaten("smtp")
+    return passstore.zugangsdaten(smtp.pass_eintrag)
 
 
 def _bereich_melden(kontext: LaufKontext, name: str, neu: int) -> None:
