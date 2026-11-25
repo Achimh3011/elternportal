@@ -48,11 +48,11 @@ def test_unbekannter_bereich_wirft_fehler(config_umgebung, tmp_path):
         lade_konfiguration(datei)
 
 
-def test_fehlender_pass_eintrag_wirft_fehler(config_umgebung, tmp_path):
+def test_fehlender_pass_eintrag_ermoeglicht_keyring(config_umgebung, tmp_path):
     datei = tmp_path / "ohne-pass.conf"
     datei.write_text("[los]\nbereiche = brett\n", encoding="utf-8")
-    with pytest.raises(click.ClickException, match="pass_eintrag"):
-        lade_konfiguration(datei)
+    konfig = lade_konfiguration(datei)
+    assert konfig.portale[0].pass_eintrag == ""
 
 
 def test_output_dir_wird_expandiert(config_umgebung, tmp_path):

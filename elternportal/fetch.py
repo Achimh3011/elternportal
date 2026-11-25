@@ -9,11 +9,10 @@ import httpx2
 import rich_click as click
 from click_loglevel import LogLevel
 
-from elternportal import ausgabe, brett, briefe, kommunikation, render
+from elternportal import ausgabe, brett, briefe, keyring_store, kommunikation, passstore, render
 from elternportal.client import LoginFehlgeschlagen, PortalClient
 from elternportal.config import BEREICHE_URLS, STATE_DATEI, lade_konfiguration, PortalKonfiguration
 from elternportal.models import BrettEintrag, Brief, Konversation, ThreadLink
-from elternportal.passstore import zugangsdaten
 from elternportal.render import Dokument
 from elternportal.store import State, pruefsumme, schreibe_dokument, speichere_anhaenge
 
@@ -89,6 +88,13 @@ class Kandidat:
     default=None,
     help="Die n neuesten Meldungen pro Portal abholen, unabhängig vom Lesestatus (0 = nur neue).",
 )
+@click.option(
+    "--keyring",
+    "keyring_erzwingen",
+    is_flag=True,
+    default=False,
+    help="Zugangsdaten aus dem System-Keyring lesen, auch wenn ein pass_eintrag konfiguriert ist.",
+)
 @click.option("--log-level", "-l", type=LogLevel(), default=logging.WARNING)
 def main(
     slugs: tuple[str, ...],
@@ -98,6 +104,7 @@ def main(
     bestaetigen: bool,
     ausgeben: bool,
     letzte: int | None,
+    keyring_erzwingen: bool,
     log_level: int,
 ) -> None:
     """Neue Nachrichten aus den Eltern-Portal/en als Markdown abholen."""
@@ -110,16 +117,36 @@ def main(
     for portal in konfig.portale:
         if slugs and portal.slug not in slugs:
             continue
-        _portal_abholen(portal, state, trocken, neu_holen, not bestaetigen, not ausgeben, letzte or 0)
+        _portal_abholen(
+            portal, state, trocken, neu_holen, not bestaetigen, not ausgeben, letzte or 0, keyring_erzwingen
+        )
     if not trocken:
         state.sichern()
 
 
+def _zugangsdaten(portal: PortalKonfiguration, keyring_erzwingen: bool) -> tuple[str, str]:
+    """Read credentials from pass or the system keyring, whichever applies.
+
+    The keyring is used when explicitly requested or when the portal has
+    no `pass_eintrag` configured; otherwise the pass store wins.
+    """
+    if keyring_erzwingen or not portal.pass_eintrag:
+        return keyring_store.zugangsdaten(portal.slug)
+    return passstore.zugangsdaten(portal.pass_eintrag)
+
+
 def _portal_abholen(
-    portal, state: State, trocken: bool, neu_holen: bool, bestaetigen: bool, ausgeben: bool, letzte: int
+    portal,
+    state: State,
+    trocken: bool,
+    neu_holen: bool,
+    bestaetigen: bool,
+    ausgeben: bool,
+    letzte: int,
+    keyring_erzwingen: bool,
 ) -> None:
     try:
-        benutzer, passwort = zugangsdaten(portal.pass_eintrag)
+        benutzer, passwort = _zugangsdaten(portal, keyring_erzwingen)
         client = PortalClient(portal.slug, benutzer, passwort)
     except (RuntimeError, httpx2.HTTPError) as fehler:
         click.secho(f"Portal {portal.slug} übersprungen: {fehler}", err=True, fg="red")

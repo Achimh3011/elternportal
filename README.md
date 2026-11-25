@@ -29,6 +29,20 @@ pass_eintrag = familie/eltern@gym-b
 Jede Sektion entspricht einem Portal (Slug der Subdomain von `eltern-portal.org`).
 Die Zugangsdaten werden aus `pass` gelesen: erste Zeile = Passwort, `user:`-Zeile = Benutzername.
 
+Alternativ zum `pass`-Store kann der System-Keyring verwendet werden: Ohne
+`pass_eintrag` (oder mit dem Flag `--keyring`) werden die Zugangsdaten aus dem
+Keyring gelesen – ein Eintrag pro Portal, der Login-Benutzername ist der
+Schlüssel des Eintrags, das Passwort das Geheimnis:
+
+```console
+    python -m keyring set elternportal/gym-a <benutzer>
+```
+
+```ini
+[gym-b]
+bereiche = elternbriefe, fachlehrer, brett
+```
+
 `bereiche` und `output_dir` können pro Portal überschrieben werden (der
 `DEFAULT`-Wert gilt nur, solange ein Portal selbst nichts angibt) – z. B. für
 Portale ohne Klassenleitung oder mit eigenem Ablageverzeichnis:
@@ -68,6 +82,9 @@ Nicht konfigurierte Bereiche werden gar nicht erst abgefragt; die Warnung
 
     # Die 5 neuesten Meldungen eines Portals erneut holen (unabhängig vom Lesestatus)
     fetch-elternportal --letzte 5
+
+    # Zugangsdaten aus dem System-Keyring lesen (statt aus pass)
+    fetch-elternportal --keyring
 ```
 
 Neue Nachrichten landen unter `output_dir/<portal>/<bereich>/<datum>-<nummer>.md`

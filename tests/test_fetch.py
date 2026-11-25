@@ -154,3 +154,31 @@ def test_zaehlen_ohne_neue_meldungen(mocker, tmp_path, fixture_html, capsys):
     ausgabe = capsys.readouterr().out
     assert "los/Elternbriefe: 0 neu, 3 bekannt" in ausgabe
     assert "keine neuen Meldungen" in ausgabe
+
+
+def _portal(pass_eintrag: str, tmp_path) -> PortalKonfiguration:
+    return PortalKonfiguration(slug="los", pass_eintrag=pass_eintrag, bereiche=(), output_dir=tmp_path)
+
+
+def test_zugangsdaten_aus_pass_wenn_eintrag_gesetzt(mocker, tmp_path):
+    from elternportal.fetch import _zugangsdaten
+
+    von_pass = mocker.patch("elternportal.fetch.passstore.zugangsdaten", return_value=("eltern", "geheim"))
+    assert _zugangsdaten(_portal("familie/los", tmp_path), False) == ("eltern", "geheim")
+    von_pass.assert_called_once_with("familie/los")
+
+
+def test_keyring_flag_erzwingt_keyring_trotz_pass_eintrag(mocker, tmp_path):
+    from elternportal.fetch import _zugangsdaten
+
+    von_keyring = mocker.patch("elternportal.fetch.keyring_store.zugangsdaten", return_value=("eltern", "geheim"))
+    assert _zugangsdaten(_portal("familie/los", tmp_path), True) == ("eltern", "geheim")
+    von_keyring.assert_called_once_with("los")
+
+
+def test_ohne_pass_eintrag_wird_keyring_verwendet(mocker, tmp_path):
+    from elternportal.fetch import _zugangsdaten
+
+    von_keyring = mocker.patch("elternportal.fetch.keyring_store.zugangsdaten", return_value=("eltern", "geheim"))
+    assert _zugangsdaten(_portal("", tmp_path), False) == ("eltern", "geheim")
+    von_keyring.assert_called_once_with("los")

@@ -4,7 +4,8 @@ The configuration lives in an INI file below the XDG config directory
 (`~/.config/elternportal/fetch-elternportal.conf`). Every section name is
 the portal slug (the subdomain part of `eltern-portal.org`). The DEFAULT
 section holds default values for `bereiche` and `output_dir`; each portal
-section may override either of them.
+section may override either of them. Credentials come from the pass store
+via `pass_eintrag` or, if no `pass_eintrag` is set, from the system keyring.
 """
 
 import logging
@@ -75,9 +76,8 @@ def _portale(parser: ConfigParser) -> tuple[PortalKonfiguration, ...]:
     portale = []
     for slug in parser.sections():
         bereiche = _bereiche(parser, slug)
+        # Ohne pass_eintrag kommen die Zugangsdaten aus dem System-Keyring.
         pass_eintrag = parser[slug].get("pass_eintrag", fallback="")
-        if not pass_eintrag:
-            raise click.ClickException(f"Sektion [{slug}] enthält keinen pass_eintrag.")
         portale.append(
             PortalKonfiguration(
                 slug=slug, pass_eintrag=pass_eintrag, bereiche=bereiche, output_dir=_output_dir(parser, slug)
