@@ -29,17 +29,21 @@ pass_eintrag = familie/eltern@gym-b
 Jede Sektion entspricht einem Portal (Slug der Subdomain von `eltern-portal.org`).
 Die Zugangsdaten werden aus `pass` gelesen: erste Zeile = Passwort, `user:`-Zeile = Benutzername.
 
-`bereiche` kann pro Portal überschrieben werden (der `DEFAULT`-Wert gilt nur,
-solange ein Portal selbst nichts angibt) – z. B. für Portale ohne Klassenleitung:
+`bereiche` und `output_dir` können pro Portal überschrieben werden (der
+`DEFAULT`-Wert gilt nur, solange ein Portal selbst nichts angibt) – z. B. für
+Portale ohne Klassenleitung oder mit eigenem Ablageverzeichnis:
 
 ```ini
 [gym-b]
 pass_eintrag = familie/eltern@gym-b
 bereiche = elternbriefe, fachlehrer, brett
+output_dir = ~/nachrichten-gym-b
 ```
 
 Nicht konfigurierte Bereiche werden gar nicht erst abgefragt; die Warnung
-„Bereich … nicht verfügbar" erscheint dann nicht mehr.
+„Bereich … nicht verfügbar" erscheint dann nicht mehr. Ohne eigenes
+`output_dir` landen die Nachrichten eines Portals unter
+`<output_dir>/<portal-slug>/<bereich>/`.
 
 ## Nutzung
 
@@ -66,9 +70,9 @@ Nicht konfigurierte Bereiche werden gar nicht erst abgefragt; die Warnung
     fetch-elternportal --letzte 5
 ```
 
-Neue Nachrichten landen unter `output_dir/<portal>/<bereich>/<datum>-<nummer>.md`,
-Anhänge im selben Verzeichnis. Bereiche, die ein Portal nicht anbietet, werden mit
-Warnung übersprungen.
+Neue Nachrichten landen unter `output_dir/<portal>/<bereich>/<datum>-<nummer>.md`
+(mit pro Portal überschreibbarem `output_dir`), Anhänge im selben Verzeichnis.
+Bereiche, die ein Portal nicht anbietet, werden mit Warnung übersprungen.
 
 Neue Meldungen werden im Terminal ausgegeben (Text als Markdown); vorhandene
 Anhänge werden mit `xdg-open` geöffnet. Hat eine Meldung keinen Textkörper, wird

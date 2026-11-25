@@ -2,8 +2,9 @@
 
 The configuration lives in an INI file below the XDG config directory
 (`~/.config/elternportal/fetch-elternportal.conf`). Every section name is
-the portal slug (the subdomain part of `eltern-portal.org`), the DEFAULT
-section holds `bereiche` and `output_dir`.
+the portal slug (the subdomain part of `eltern-portal.org`). The DEFAULT
+section holds default values for `bereiche` and `output_dir`; each portal
+section may override either of them.
 """
 
 import logging
@@ -41,6 +42,7 @@ class PortalKonfiguration:
     slug: str
     pass_eintrag: str
     bereiche: tuple[str, ...]
+    output_dir: Path
 
 
 @dataclass(frozen=True)
@@ -48,7 +50,6 @@ class Konfiguration:
     """Complete application configuration."""
 
     portale: tuple[PortalKonfiguration, ...]
-    output_dir: Path
 
 
 def lade_konfiguration(config_pfad: Path | None = None) -> Konfiguration:
@@ -67,8 +68,7 @@ def lade_konfiguration(config_pfad: Path | None = None) -> Konfiguration:
         dateien.append(str(config_pfad))
     gelesen = parser.read(dateien)
     log.info("Konfiguration gelesen aus %s", ", ".join(gelesen) or "(keine Datei, Defaults)")
-    output_dir = Path(parser["DEFAULT"]["output_dir"]).expanduser()
-    return Konfiguration(portale=_portale(parser), output_dir=output_dir)
+    return Konfiguration(portale=_portale(parser))
 
 
 def _portale(parser: ConfigParser) -> tuple[PortalKonfiguration, ...]:
@@ -78,10 +78,19 @@ def _portale(parser: ConfigParser) -> tuple[PortalKonfiguration, ...]:
         pass_eintrag = parser[slug].get("pass_eintrag", fallback="")
         if not pass_eintrag:
             raise click.ClickException(f"Sektion [{slug}] enthält keinen pass_eintrag.")
-        portale.append(PortalKonfiguration(slug=slug, pass_eintrag=pass_eintrag, bereiche=bereiche))
+        portale.append(
+            PortalKonfiguration(
+                slug=slug, pass_eintrag=pass_eintrag, bereiche=bereiche, output_dir=_output_dir(parser, slug)
+            )
+        )
     if not portale:
         raise click.ClickException(f"Keine Portale konfiguriert. Lege {CONFIG_DATEI} an (siehe README).")
     return tuple(portale)
+
+
+def _output_dir(parser: ConfigParser, slug: str) -> Path:
+    roh = parser[slug].get("output_dir", fallback=parser["DEFAULT"]["output_dir"])
+    return Path(roh).expanduser()
 
 
 def _bereiche(parser: ConfigParser, slug: str) -> tuple[str, ...]:

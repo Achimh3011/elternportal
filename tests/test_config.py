@@ -59,4 +59,17 @@ def test_output_dir_wird_expandiert(config_umgebung, tmp_path):
     datei: Path = tmp_path / "pfad.conf"
     datei.write_text("[los]\npass_eintrag = familie/los\n", encoding="utf-8")
     konfig = lade_konfiguration(datei)
-    assert konfig.output_dir == Path.home() / "elternportal-nachrichten"
+    assert konfig.portale[0].output_dir == Path.home() / "elternportal-nachrichten"
+
+
+def test_output_dir_pro_portal_ueberschreibbar(config_umgebung, tmp_path):
+    datei = tmp_path / "pfad-pro-portal.conf"
+    datei.write_text(
+        "[DEFAULT]\noutput_dir = ~/elternportal-nachrichten\n"
+        "[los]\npass_eintrag = familie/los\n\n[mwg]\npass_eintrag = familie/mwg\n"
+        f"output_dir = {tmp_path / 'mwg-nachrichten'}\n",
+        encoding="utf-8",
+    )
+    konfig = lade_konfiguration(datei)
+    assert konfig.portale[0].output_dir == Path.home() / "elternportal-nachrichten"
+    assert konfig.portale[1].output_dir == tmp_path / "mwg-nachrichten"

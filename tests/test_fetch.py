@@ -25,7 +25,7 @@ def _brief(nummer: str, eb_id: str, bestaetigt: bool) -> Brief:
 def _kontext(
     client, tmp_path, *, bestaetigen: bool = True, trocken: bool = False, ausgeben: bool = True, letzte: int = 0
 ) -> LaufKontext:
-    portal = PortalKonfiguration(slug="los", pass_eintrag="familie/los", bereiche=())
+    portal = PortalKonfiguration(slug="los", pass_eintrag="familie/los", bereiche=(), output_dir=tmp_path)
     return LaufKontext(
         client, portal, "Kind", tmp_path, State(tmp_path / "state.json"), trocken, bestaetigen, ausgeben, letzte
     )
@@ -89,7 +89,7 @@ def test_dokument_wird_nur_bei_ausgabe_angezeigt(mocker, tmp_path):
 
 
 def _letzte_kontext(client, tmp_path, bereiche, n) -> LaufKontext:
-    portal = PortalKonfiguration(slug="los", pass_eintrag="familie/los", bereiche=bereiche)
+    portal = PortalKonfiguration(slug="los", pass_eintrag="familie/los", bereiche=bereiche, output_dir=tmp_path)
     return LaufKontext(client, portal, "Kind", tmp_path, State(tmp_path / "state.json"), False, True, False, n)
 
 

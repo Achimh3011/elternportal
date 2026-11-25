@@ -110,22 +110,13 @@ def main(
     for portal in konfig.portale:
         if slugs and portal.slug not in slugs:
             continue
-        _portal_abholen(
-            portal, konfig.output_dir, state, trocken, neu_holen, not bestaetigen, not ausgeben, letzte or 0
-        )
+        _portal_abholen(portal, state, trocken, neu_holen, not bestaetigen, not ausgeben, letzte or 0)
     if not trocken:
         state.sichern()
 
 
 def _portal_abholen(
-    portal,
-    output_dir: Path,
-    state: State,
-    trocken: bool,
-    neu_holen: bool,
-    bestaetigen: bool,
-    ausgeben: bool,
-    letzte: int,
+    portal, state: State, trocken: bool, neu_holen: bool, bestaetigen: bool, ausgeben: bool, letzte: int
 ) -> None:
     try:
         benutzer, passwort = zugangsdaten(portal.pass_eintrag)
@@ -139,7 +130,9 @@ def _portal_abholen(
         for kind_id, kind_name in kinder:
             if len(kinder) > 1 and kind_id:
                 client.kind_waehlen(kind_id)
-            kontext = LaufKontext(client, portal, kind_name, output_dir, state, trocken, bestaetigen, ausgeben, letzte)
+            kontext = LaufKontext(
+                client, portal, kind_name, portal.output_dir, state, trocken, bestaetigen, ausgeben, letzte
+            )
             if letzte:
                 _letzte_abholen(kontext)
             elif neu_holen:
