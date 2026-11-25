@@ -5,7 +5,7 @@ import mimetypes
 import smtplib
 from datetime import datetime
 from email.message import EmailMessage
-from email.utils import format_datetime
+from email.utils import format_datetime, make_msgid
 
 from elternportal.config import SmtpKonfiguration
 from elternportal.store import AnhangInfo
@@ -60,6 +60,8 @@ def _nachricht(
     nachricht["To"] = ", ".join(empfaenger)
     nachricht["Subject"] = betreff
     nachricht["Date"] = _datum_header(datum)
+    domain = absender.partition("@")[2] or "elternportal.local"
+    nachricht["Message-ID"] = make_msgid(domain=domain)
     nachricht.set_content(text)
     for info in anhaenge:
         _anhang_hinzufuegen(nachricht, info)

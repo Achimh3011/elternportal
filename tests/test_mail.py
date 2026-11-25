@@ -62,6 +62,29 @@ def test_unbekanntes_datum_faellt_auf_jetzt(mocker):
     assert abs((datetime.now(datum.tzinfo) - datum).total_seconds()) < 60
 
 
+def test_message_id_traegt_absender_domain(mocker):
+    verbindung = _verbindung(mocker)
+    sende_mail(_smtp(absender="absender@example.com"), "benutzer", "geheim", ("an@example.com",), "B", "T", [], _DATUM)
+    msgid = verbindung.send_message.call_args.args[0]["Message-ID"]
+    assert msgid.startswith("<")
+    assert msgid.endswith("@example.com>")
+
+
+def test_message_id_ohne_domain_nutzt_fallback(mocker):
+    verbindung = _verbindung(mocker)
+    sende_mail(_smtp(), "benutzer", "geheim", ("an@example.com",), "B", "T", [], _DATUM)
+    msgid = verbindung.send_message.call_args.args[0]["Message-ID"]
+    assert msgid.endswith("@elternportal.local>")
+
+
+def test_message_id_ist_pro_mail_eindeutig(mocker):
+    verbindung = _verbindung(mocker)
+    sende_mail(_smtp(), "benutzer", "geheim", ("an@example.com",), "B", "T", [], _DATUM)
+    sende_mail(_smtp(), "benutzer", "geheim", ("an@example.com",), "B", "T", [], _DATUM)
+    erste, zweite = [args.args[0]["Message-ID"] for args in verbindung.send_message.call_args_list]
+    assert erste != zweite
+
+
 def test_gespeicherte_anhaenge_werden_angehaengt(mocker, tmp_path):
     datei = tmp_path / "einladung.pdf"
     datei.write_bytes(b"%PDF-1.4 test")
