@@ -1,7 +1,7 @@
 # pyproject.toml – PEP 621 version for uv
 [project]
 name = "elternportal"
-version = "0.1.0"
+version = "0.2.0"
 description = "Fetch new messages from eltern-portal.org school portals as Markdown"
 readme = "README.md"
 requires-python = ">=3.14,<4.0"
