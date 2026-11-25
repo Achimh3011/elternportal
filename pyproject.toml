@@ -23,6 +23,14 @@ dependencies = [
 ]
 
 # ----------------------------------------------------------------------
+# Optional dependencies (install extras with `uv sync --extra <name>`)
+# ----------------------------------------------------------------------
+[project.optional-dependencies]
+# Alternate keyring backends for environments without a Secret-Service
+# (e.g. headless servers, cron): uv sync --extra alt
+alt = ["keyrings.alt>=5.0.2"]
+
+# ----------------------------------------------------------------------
 # Optional (dev) dependencies
 # ----------------------------------------------------------------------
 [dependency-groups]

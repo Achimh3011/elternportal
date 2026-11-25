@@ -38,6 +38,10 @@ Schlüssel des Eintrags, das Passwort das Geheimnis:
     python -m keyring set elternportal/gym-a <benutzer>
 ```
 
+Für Umgebungen ohne Secret-Service (z. B. Headless-Server, Cron) liefert das
+optionale Extra `alt` alternative Keyring-Backends; es ist bei der Installation
+mit `uv sync --all-extras` automatisch enthalten.
+
 ```ini
 [gym-b]
 bereiche = elternbriefe, fachlehrer, brett
