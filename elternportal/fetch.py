@@ -388,11 +388,16 @@ def _dokument_speichern(kontext: LaufKontext, bereich: str, dokument: Dokument, 
     datei = schreibe_dokument(dokument, kontext.portal.slug, ziel, infos)
     kontext.state.merken(kontext.portal.slug, bereich, ident, summe)
     click.secho(f"Neu: {datei}", fg="green")
-    if kontext.ausgeben:
+    if kontext.ausgeben and not _mail_aktiv(kontext):
         ausgabe.zeige_dokument(dokument, infos)
-    if kontext.mail and kontext.portal.empfaenger:
+    if _mail_aktiv(kontext):
         _mail_versenden(kontext, dokument, infos)
     return True
+
+
+def _mail_aktiv(kontext: LaufKontext) -> bool:
+    """Whether this message goes out as mail instead of to the terminal."""
+    return kontext.mail and bool(kontext.portal.empfaenger)
 
 
 def _mail_versenden(kontext: LaufKontext, dokument: Dokument, infos: list) -> None:
@@ -400,9 +405,10 @@ def _mail_versenden(kontext: LaufKontext, dokument: Dokument, infos: list) -> No
     if kontext.smtp is None:
         return
     betreff = f"[{kontext.portal.slug}] {dokument.titel}"
+    text = ausgabe.anzeige_text(dokument, infos)
     try:
         benutzer, passwort = _smtp_zugangsdaten(kontext.smtp, kontext.keyring_erzwingen)
-        mail.sende_mail(kontext.smtp, benutzer, passwort, kontext.portal.empfaenger, betreff, dokument.body, infos)
+        mail.sende_mail(kontext.smtp, benutzer, passwort, kontext.portal.empfaenger, betreff, text, infos)
     except (RuntimeError, OSError, smtplib.SMTPException) as fehler:
         click.secho(f"Mailversand fehlgeschlagen für {dokument.titel!r}: {fehler}", err=True, fg="red")
         return

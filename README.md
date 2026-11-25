@@ -108,7 +108,12 @@ bzw. mit `--keyring` – aus dem System-Keyring:
 ```
 
 Portale ohne `empfaenger` werden beim Mailversand mit einer Warnung
-übersprungen; `--mail` ohne `[SMTP]`-Sektion bricht mit einer Fehlermeldung ab.
+übersprungen – ihre Meldungen erscheinen wie gewohnt im Terminal; `--mail` ohne
+`[SMTP]`-Sektion bricht mit einer Fehlermeldung ab. Bei aktivem Mailversand ist
+die **Mail der Ausgabekanal**: der Meldungstext wird dann nicht mehr im
+Terminal ausgegeben (und Anhänge nicht geöffnet), sondern als Mail-Text
+versendet – bei Meldungen ohne Textkörper fällt der Mail-Text auf den
+extrahierten Anhang-Text zurück, genau wie bei der Terminal-Ausgabe.
 Einzelne Mailfehler brechen den Lauf nicht ab – die Meldung bleibt gespeichert.
 
 ## Nutzung
@@ -139,6 +144,7 @@ Einzelne Mailfehler brechen den Lauf nicht ab – die Meldung bleibt gespeichert
     fetch-elternportal --keyring
 
     # Neue Meldungen zusätzlich als E-Mail versenden
+    # (der Meldungstext geht dann in die Mail statt ins Terminal)
     fetch-elternportal --neu --mail
 ```
 

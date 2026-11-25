@@ -3,7 +3,7 @@
 from datetime import datetime
 from pathlib import Path
 
-from elternportal.ausgabe import _lesbar, oeffne_datei, zeige_dokument
+from elternportal.ausgabe import _lesbar, anzeige_text, oeffne_datei, zeige_dokument
 from elternportal.models import Anhang
 from elternportal.render import Dokument
 from elternportal.store import AnhangInfo
@@ -61,6 +61,22 @@ def test_lesbar_heuristik():
     assert not _lesbar(None)
     assert not _lesbar("kurz")
     assert not _lesbar("h" * 200 + "\x00\x01\x02" * 100)
+
+
+def test_anzeige_text_ist_der_body(tmp_path):
+    assert anzeige_text(_dokument(body="Hier steht der Text."), []) == "Hier steht der Text."
+
+
+def test_anzeige_text_faellt_auf_lesbaren_anhangstext_zurueck(tmp_path):
+    text = "Sehr geehrte Eltern, " + "hier steht ein gut lesbarer extrahierter Text aus dem Anhang. " * 2
+    pdf = tmp_path / "brief.pdf"
+    assert anzeige_text(_dokument(), [_info(pdf, text=f"  {text}  ")]) == text.strip()
+
+
+def test_anzeige_text_leer_ohne_lesbaren_anhangstext(tmp_path):
+    pdf = tmp_path / "scan.pdf"
+    assert anzeige_text(_dokument(), [_info(pdf, text="\x00\x01\x02" * 100)]) == ""
+    assert anzeige_text(_dokument(), []) == ""
 
 
 def test_oeffne_datei_ruft_programm_auf(mocker, tmp_path):

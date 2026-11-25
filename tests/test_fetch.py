@@ -201,6 +201,7 @@ def test_dokument_wird_gemailt_wenn_mail_aktiv(mocker, tmp_path):
     from elternportal.render import Dokument
 
     sende = mocker.patch("elternportal.fetch.mail.sende_mail")
+    zeige = mocker.patch("elternportal.fetch.ausgabe.zeige_dokument")
     mocker.patch("elternportal.fetch.keyring_store.zugangsdaten", return_value=("smtp", "geheim"))
     dokument = Dokument(
         ident="912",
@@ -212,8 +213,30 @@ def test_dokument_wird_gemailt_wenn_mail_aktiv(mocker, tmp_path):
     )
     assert _dokument_speichern(_smtp_kontext(tmp_path, ("an@example.com",)), "elternbriefe", dokument, "summe") is True
     sende.assert_called_once()
-    betreff = sende.call_args.args[4]
-    assert betreff == "[los] Titel"
+    assert sende.call_args.args[4] == "[los] Titel"
+    assert sende.call_args.args[5] == "Text"
+    zeige.assert_not_called()
+
+
+def test_mail_text_faellt_auf_anhangstext_zurueck(mocker, tmp_path):
+    from datetime import datetime as _datetime
+
+    from elternportal.fetch import _mail_versenden
+    from elternportal.render import Dokument
+
+    sende = mocker.patch("elternportal.fetch.mail.sende_mail")
+    mocker.patch("elternportal.fetch.keyring_store.zugangsdaten", return_value=("smtp", "geheim"))
+    mocker.patch("elternportal.fetch.ausgabe.anzeige_text", return_value="Extrahierter Anhangstext")
+    dokument = Dokument(
+        ident="912",
+        bereich="elternbriefe",
+        datei_kurzel="12-titel",
+        titel="Titel",
+        datum=_datetime(2026, 11, 25),
+        body="",
+    )
+    _mail_versenden(_smtp_kontext(tmp_path, ("an@example.com",)), dokument, [])
+    assert sende.call_args.args[5] == "Extrahierter Anhangstext"
 
 
 def test_ohne_empfaenger_wird_keine_mail_gesendet(mocker, tmp_path):
@@ -223,6 +246,7 @@ def test_ohne_empfaenger_wird_keine_mail_gesendet(mocker, tmp_path):
     from elternportal.render import Dokument
 
     sende = mocker.patch("elternportal.fetch.mail.sende_mail")
+    zeige = mocker.patch("elternportal.fetch.ausgabe.zeige_dokument")
     dokument = Dokument(
         ident="912",
         bereich="elternbriefe",
@@ -233,6 +257,7 @@ def test_ohne_empfaenger_wird_keine_mail_gesendet(mocker, tmp_path):
     )
     assert _dokument_speichern(_smtp_kontext(tmp_path, ()), "elternbriefe", dokument, "summe") is True
     sende.assert_not_called()
+    zeige.assert_called_once()
 
 
 def test_mailfehler_bricht_speicherung_nicht_ab(mocker, tmp_path):

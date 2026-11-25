@@ -15,6 +15,25 @@ _MIN_TEXT_LAENGE = 100
 _MIN_SAUBER_QUOTE = 0.9
 
 
+def anzeige_text(dokument: Dokument, anhang_infos: list[AnhangInfo]) -> str:
+    """The message text for display: the body, or the extracted attachment text.
+
+    Messages without a text body fall back to the extracted text of the
+    first reasonably readable attachment; if none is readable, the
+    result is empty.
+
+    Args:
+        dokument: Rendered document to display.
+        anhang_infos: Saved attachments with extracted texts.
+
+    Returns:
+        The text to show or mail, possibly empty.
+    """
+    if dokument.body.strip():
+        return dokument.body.strip()
+    return next(((info.text or "").strip() for info in anhang_infos if _lesbar(info.text)), "")
+
+
 def zeige_dokument(dokument: Dokument, anhang_infos: list[AnhangInfo]) -> None:
     """Print a new message to the terminal, opening files where needed.
 
@@ -28,14 +47,10 @@ def zeige_dokument(dokument: Dokument, anhang_infos: list[AnhangInfo]) -> None:
         anhang_infos: Saved attachments with extracted texts.
     """
     click.secho(f"═══ {dokument.titel} ═══", bold=True)
-    if dokument.body.strip():
-        click.echo(dokument.body.strip())
-        _anhaenge_oeffnen(anhang_infos)
-        return
-    text = next((info.text for info in anhang_infos if _lesbar(info.text)), None)
+    text = anzeige_text(dokument, anhang_infos)
     if text:
-        click.echo(text.strip())
-    else:
+        click.echo(text)
+    if not text or dokument.body.strip():
         _anhaenge_oeffnen(anhang_infos)
 
 
