@@ -408,7 +408,9 @@ def _mail_versenden(kontext: LaufKontext, dokument: Dokument, infos: list) -> No
     text = ausgabe.anzeige_text(dokument, infos)
     try:
         benutzer, passwort = _smtp_zugangsdaten(kontext.smtp, kontext.keyring_erzwingen)
-        mail.sende_mail(kontext.smtp, benutzer, passwort, kontext.portal.empfaenger, betreff, text, infos)
+        mail.sende_mail(
+            kontext.smtp, benutzer, passwort, kontext.portal.empfaenger, betreff, text, infos, dokument.datum
+        )
     except (RuntimeError, OSError, smtplib.SMTPException) as fehler:
         click.secho(f"Mailversand fehlgeschlagen für {dokument.titel!r}: {fehler}", err=True, fg="red")
         return

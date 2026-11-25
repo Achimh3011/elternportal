@@ -113,7 +113,10 @@ Portale ohne `empfaenger` werden beim Mailversand mit einer Warnung
 die **Mail der Ausgabekanal**: der Meldungstext wird dann nicht mehr im
 Terminal ausgegeben (und Anhänge nicht geöffnet), sondern als Mail-Text
 versendet – bei Meldungen ohne Textkörper fällt der Mail-Text auf den
-extrahierten Anhang-Text zurück, genau wie bei der Terminal-Ausgabe.
+extrahierten Anhang-Text zurück, genau wie bei der Terminal-Ausgabe. Der
+`Date:`-Header der Mail trägt den Zeitstempel der Meldung, sodass das
+Empfangsprogramm das Datum der Portal-Meldung anzeigt (liegt kein Zeitstempel
+vor, wird die Sendezeit verwendet).
 Einzelne Mailfehler brechen den Lauf nicht ab – die Meldung bleibt gespeichert.
 
 ## Nutzung

@@ -3,7 +3,9 @@
 import logging
 import mimetypes
 import smtplib
+from datetime import datetime
 from email.message import EmailMessage
+from email.utils import format_datetime
 
 from elternportal.config import SmtpKonfiguration
 from elternportal.store import AnhangInfo
@@ -21,6 +23,7 @@ def sende_mail(
     betreff: str,
     text: str,
     anhaenge: list[AnhangInfo],
+    datum: datetime,
 ) -> None:
     """Send one message as a single mail, attachments as MIME parts.
 
@@ -32,8 +35,9 @@ def sende_mail(
         betreff: Subject line.
         text: Plain text body of the message.
         anhaenge: Saved attachments to attach (read from their stored files).
+        datum: Timestamp of the portal message; becomes the Date header.
     """
-    nachricht = _nachricht(smtp.absender or benutzer, empfaenger, betreff, text, anhaenge)
+    nachricht = _nachricht(smtp.absender or benutzer, empfaenger, betreff, text, anhaenge, datum)
     with smtplib.SMTP(smtp.server, smtp.port, timeout=_TIMEOUT) as verbindung:
         if smtp.starttls:
             verbindung.starttls()
@@ -43,17 +47,29 @@ def sende_mail(
 
 
 def _nachricht(
-    absender: str, empfaenger: tuple[str, ...], betreff: str, text: str, anhaenge: list[AnhangInfo]
+    absender: str,
+    empfaenger: tuple[str, ...],
+    betreff: str,
+    text: str,
+    anhaenge: list[AnhangInfo],
+    datum: datetime,
 ) -> EmailMessage:
     """Build the mail message with attachments."""
     nachricht = EmailMessage()
     nachricht["From"] = absender
     nachricht["To"] = ", ".join(empfaenger)
     nachricht["Subject"] = betreff
+    nachricht["Date"] = _datum_header(datum)
     nachricht.set_content(text)
     for info in anhaenge:
         _anhang_hinzufuegen(nachricht, info)
     return nachricht
+
+
+def _datum_header(datum: datetime) -> str:
+    """RFC 5322 date of the portal message; now if the portal supplied none."""
+    zeit = datum if datum != datetime.min else datetime.now()
+    return format_datetime(zeit.astimezone())
 
 
 def _anhang_hinzufuegen(nachricht: EmailMessage, info: AnhangInfo) -> None:

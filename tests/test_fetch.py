@@ -215,6 +215,7 @@ def test_dokument_wird_gemailt_wenn_mail_aktiv(mocker, tmp_path):
     sende.assert_called_once()
     assert sende.call_args.args[4] == "[los] Titel"
     assert sende.call_args.args[5] == "Text"
+    assert sende.call_args.args[7] == _datetime(2026, 11, 25)
     zeige.assert_not_called()
 
 
