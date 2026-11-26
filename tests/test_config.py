@@ -59,7 +59,7 @@ def test_output_dir_wird_expandiert(config_umgebung, tmp_path):
     datei: Path = tmp_path / "pfad.conf"
     datei.write_text("[los]\npass_eintrag = familie/los\n", encoding="utf-8")
     konfig = lade_konfiguration(datei)
-    assert konfig.portale[0].output_dir == Path.home() / "elternportal-nachrichten"
+    assert konfig.portale[0].output_dir == Path.home() / "elternportal-nachrichten" / "los"
 
 
 def test_output_dir_pro_portal_ueberschreibbar(config_umgebung, tmp_path):
@@ -71,8 +71,19 @@ def test_output_dir_pro_portal_ueberschreibbar(config_umgebung, tmp_path):
         encoding="utf-8",
     )
     konfig = lade_konfiguration(datei)
-    assert konfig.portale[0].output_dir == Path.home() / "elternportal-nachrichten"
+    assert konfig.portale[0].output_dir == Path.home() / "elternportal-nachrichten" / "los"
     assert konfig.portale[1].output_dir == tmp_path / "mwg-nachrichten"
+
+
+def test_pro_portal_output_dir_wird_ohne_slug_verwendet(config_umgebung, tmp_path):
+    datei = tmp_path / "pfad-ohne-slug.conf"
+    datei.write_text(
+        "[DEFAULT]\noutput_dir = ~/elternportal-nachrichten\n"
+        f"[los]\npass_eintrag = familie/los\noutput_dir = {tmp_path / 'los-nachrichten'}\n",
+        encoding="utf-8",
+    )
+    konfig = lade_konfiguration(datei)
+    assert konfig.portale[0].output_dir == tmp_path / "los-nachrichten"
 
 
 def test_smtp_sektion_wird_geparst(config_umgebung, tmp_path):

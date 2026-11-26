@@ -59,9 +59,11 @@ output_dir = ~/nachrichten-gym-b
 ```
 
 Nicht konfigurierte Bereiche werden gar nicht erst abgefragt; die Warnung
-„Bereich … nicht verfügbar" erscheint dann nicht mehr. Ohne eigenes
-`output_dir` landen die Nachrichten eines Portals unter
-`<output_dir>/<portal-slug>/<bereich>/`.
+„Bereich … nicht verfügbar" erscheint dann nicht mehr. Ein pro Portal gesetztes
+`output_dir` ist das Portal-Verzeichnis selbst – die Nachrichten landen direkt
+darunter in `<output_dir>/<bereich>/`. Nur der geerbte `DEFAULT`-Wert bekommt
+pro Portal den Slug angehängt (`<output_dir>/<portal-slug>/<bereich>/`), damit
+die Portale im gemeinsamen Verzeichnis getrennt bleiben.
 
 ### Mailversand
 

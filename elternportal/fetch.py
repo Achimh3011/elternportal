@@ -382,7 +382,7 @@ def _dokument_speichern(kontext: LaufKontext, bereich: str, dokument: Dokument, 
         click.secho(f"NEU {kontext.portal.slug}/{bereich}: {dokument.titel}", fg="yellow")
         return False
     inhalte = {anhang.url: kontext.client.anhang_holen(anhang.url) for anhang in dokument.anhaenge}
-    ziel = kontext.output_dir / kontext.portal.slug / bereich
+    ziel = kontext.output_dir / bereich
     ziel.mkdir(parents=True, exist_ok=True)
     infos = speichere_anhaenge(ziel, dokument.anhaenge, inhalte)
     datei = schreibe_dokument(dokument, kontext.portal.slug, ziel, infos)

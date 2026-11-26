@@ -140,8 +140,16 @@ def _smtp(parser: ConfigParser) -> SmtpKonfiguration | None:
 
 
 def _output_dir(parser: ConfigParser, slug: str) -> Path:
-    roh = parser[slug].get("output_dir", fallback=parser["DEFAULT"]["output_dir"])
-    return Path(roh).expanduser()
+    """Final message directory of a portal.
+
+    An output_dir set in the portal section is used as-is; a value
+    inherited from DEFAULT gets the portal slug appended so the
+    portals stay separated below the shared directory.
+    """
+    roh = parser[slug].get("output_dir", fallback="")
+    if roh and roh != parser["DEFAULT"]["output_dir"]:
+        return Path(roh).expanduser()
+    return Path(parser["DEFAULT"]["output_dir"]).expanduser() / slug
 
 
 def _bereiche(parser: ConfigParser, slug: str) -> tuple[str, ...]:

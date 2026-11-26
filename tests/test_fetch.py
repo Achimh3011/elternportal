@@ -101,7 +101,7 @@ def test_letzte_holt_die_n_neuesten_briefe(mocker, tmp_path, fixture_html):
     client.anhang_holen.side_effect = lambda url: b"x"
     kontext = _letzte_kontext(client, tmp_path, ("elternbriefe",), 2)
     _letzte_abholen(kontext)
-    dateien = sorted(pfad.name for pfad in (tmp_path / "los" / "elternbriefe").glob("*.md"))
+    dateien = sorted(pfad.name for pfad in (tmp_path / "elternbriefe").glob("*.md"))
     assert dateien == ["2025-07-05-12-kuchenbuffet-beim-sommerfest.md", "2026-11-20-11-sozialpraktikum.md"]
     client.brief_bestaetigen.assert_called_once_with("912")
 
@@ -116,7 +116,7 @@ def test_letzte_waehlt_zeitlich_neuesten_thread(mocker, tmp_path, fixture_html):
     client.anhang_holen.side_effect = lambda url: b"x"
     kontext = _letzte_kontext(client, tmp_path, ("fachlehrer",), 1)
     _letzte_abholen(kontext)
-    dateien = list((tmp_path / "los" / "fachlehrer").glob("*.md"))
+    dateien = list((tmp_path / "fachlehrer").glob("*.md"))
     assert [pfad.name for pfad in dateien] == ["2026-11-23-5001-reminder-weihnachtspaeckchenaktion.md"]
 
 
@@ -136,7 +136,7 @@ def test_zaehlen_gibt_nur_anzahlen_aus(mocker, tmp_path, fixture_html, capsys):
     assert "los/Elternbriefe: 2 neu, 1 bekannt" in ausgabe
     assert "mit --neu abholen" in ausgabe
     client.anhang_holen.assert_not_called()
-    assert not (tmp_path / "los").exists()
+    assert not (tmp_path / "elternbriefe").exists()
 
 
 def test_zaehlen_ohne_neue_meldungen(mocker, tmp_path, fixture_html, capsys):
