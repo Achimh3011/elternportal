@@ -4,6 +4,7 @@ import logging
 import time
 
 import httpx2
+import stamina
 from lxml import html as lhtml
 
 log = logging.getLogger(__name__)
@@ -11,6 +12,8 @@ log = logging.getLogger(__name__)
 _LOGIN_URL = "/includes/project/auth/login.php"
 _REQUEST_TIMEOUT_SECONDS = 30
 _REQUEST_PAUSE_SECONDS = 0.5
+_RETRY_VERSUCHE = 3
+_RETRY_ZEITFENSTER_SECONDS = 30.0
 
 
 class LoginFehlgeschlagen(Exception):
@@ -34,7 +37,7 @@ class PortalClient:
     def login(self) -> None:
         """Log into the portal; raises LoginFehlgeschlagen otherwise."""
         csrf = self._csrf_token(self.seite_holen("/"))
-        antwort = self._client.post(
+        antwort = self._post(
             _LOGIN_URL,
             data={"csrf": csrf, "username": self._benutzer, "password": self._passwort, "go_to": ""},
         )
@@ -44,21 +47,21 @@ class PortalClient:
 
     def seite_holen(self, pfad: str) -> str:
         """Fetch a portal page as text."""
-        antwort = self._client.get(pfad)
+        antwort = self._get(pfad)
         antwort.raise_for_status()
         time.sleep(_REQUEST_PAUSE_SECONDS)
         return antwort.text
 
     def anhang_holen(self, url: str) -> bytes:
         """Download an attachment referenced by a page."""
-        antwort = self._client.get(url)
+        antwort = self._get(url)
         antwort.raise_for_status()
         time.sleep(_REQUEST_PAUSE_SECONDS)
         return antwort.content
 
     def brief_bestaetigen(self, eb_id: str) -> None:
         """Confirm receipt of one Elternbrief (mark it as read)."""
-        antwort = self._client.get("/api/elternbrief_bestaetigen.php", params={"eb": eb_id})
+        antwort = self._get("/api/elternbrief_bestaetigen.php", params={"eb": eb_id})
         antwort.raise_for_status()
         time.sleep(_REQUEST_PAUSE_SECONDS)
 
@@ -70,13 +73,23 @@ class PortalClient:
 
     def kind_waehlen(self, kind_id: str) -> None:
         """Switch the session to another child."""
-        antwort = self._client.get("/api/set_child.php", params={"id": kind_id})
+        antwort = self._get("/api/set_child.php", params={"id": kind_id})
         antwort.raise_for_status()
         log.debug("Kind %s aktiviert (Antwort: %s)", kind_id, antwort.text.strip())
 
     def schliessen(self) -> None:
         """End the HTTP session."""
         self._client.close()
+
+    @stamina.retry(on=httpx2.TransportError, attempts=_RETRY_VERSUCHE, timeout=_RETRY_ZEITFENSTER_SECONDS)
+    def _get(self, pfad: str, params: dict[str, str] | None = None) -> httpx2.Response:
+        """GET request; transient network errors are retried."""
+        return self._client.get(pfad, params=params)
+
+    @stamina.retry(on=httpx2.TransportError, attempts=_RETRY_VERSUCHE, timeout=_RETRY_ZEITFENSTER_SECONDS)
+    def _post(self, pfad: str, data: dict[str, str]) -> httpx2.Response:
+        """POST request; transient network errors are retried."""
+        return self._client.post(pfad, data=data)
 
     def _csrf_token(self, seite_html: str) -> str:
         token = lhtml.fromstring(seite_html).xpath("string(//input[@name='csrf']/@value)")

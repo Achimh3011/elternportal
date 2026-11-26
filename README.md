@@ -174,6 +174,12 @@ Anhänge werden mit `xdg-open` geöffnet. Hat eine Meldung keinen Textkörper, w
 stattdessen der extrahierte Anhang-Text ausgegeben, sofern er lesbar ist –
 sonst wird der Anhang geöffnet.
 
+Transiente Netzwerkfehler (Verbindungsabbrüche, Timeouts, „Server disconnected")
+werden pro Anfrage bis zu drei Mal automatisch wiederholt (mit ansteigenden
+Wartezeiten, [stamina](https://github.com/hynek/stamina)); erst wenn das Portal
+auch danach nicht antwortet, wird der Portal-Lauf mit einer Fehlermeldung
+abgebrochen.
+
 Elternbriefe werden nach dem Abrufen **als gelesen bestätigt** (inklusive des
 Bestands vom Erstlauf); mit `--keine-bestaetigung` wird darauf verzichtet.
 
