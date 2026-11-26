@@ -68,9 +68,12 @@ die Portale im gemeinsamen Verzeichnis getrennt bleiben.
 Der Zustand (welche Meldungen schon bekannt sind) liegt als `state.json` im
 Portal-Verzeichnis. Damit kann das `output_dir` zwischen Rechnern geteilt
 werden (z. B. via Syncthing oder Nextcloud): Nachrichten und Zustand wandern
-zusammen, und ein zweiter Rechner kennt sofort dieselben Meldungen. Der alte
-globale Zustand unter `~/.local/share/elternportal/state.json` wird beim ersten
-Lauf pro Portal automatisch überführt und danach nicht mehr benötigt.
+zusammen, und ein zweiter Rechner kennt sofort dieselben Meldungen. Die Datei
+wird nur geschrieben, wenn sich tatsächlich etwas geändert hat – ein Lauf ohne
+Neuigkeiten kann den Zustand im geteilten Verzeichnis also nicht überschreiben.
+Der alte globale Zustand unter `~/.local/share/elternportal/state.json` wird
+beim ersten Lauf pro Portal automatisch überführt und danach nicht mehr
+benötigt.
 
 ### Mailversand
 

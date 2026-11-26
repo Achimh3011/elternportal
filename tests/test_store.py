@@ -19,6 +19,32 @@ def test_state_zyklus(tmp_path):
     assert not geladen.ist_bekannt("los", "brett", "1", "abc")
 
 
+def test_sichern_ohne_aenderung_schreibt_nichts(tmp_path):
+    pfad = tmp_path / "state.json"
+    state = State(pfad)
+    state.merken("los", "elternbriefe", "1", "abc")
+    state.sichern()
+    pfad.unlink()
+    state.sichern()
+    assert not pfad.exists()
+
+
+def test_merken_mit_gleichem_wert_macht_nicht_geaendert(tmp_path):
+    pfad = tmp_path / "state.json"
+    state = State(pfad)
+    state.merken("los", "elternbriefe", "1", "abc")
+    state.sichern()
+    geladen = State(pfad)
+    geladen.merken("los", "elternbriefe", "1", "abc")
+    pfad.unlink()
+    geladen.sichern()
+    assert not pfad.exists()
+    # Erst ein geaenderter Wert schreibt die Datei neu.
+    geladen.merken("los", "elternbriefe", "1", "anders")
+    geladen.sichern()
+    assert State(pfad).ist_bekannt("los", "elternbriefe", "1", "anders")
+
+
 def test_uebertragung_uebernimmt_nur_das_eigene_portal(tmp_path):
     alt = State(tmp_path / "alt-state.json")
     alt.merken("los", "elternbriefe", "1", "abc")

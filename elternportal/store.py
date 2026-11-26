@@ -25,6 +25,7 @@ class State:
     def __init__(self, pfad: Path):
         self._pfad = pfad
         self._daten: dict[str, dict[str, dict[str, str]]] = {}
+        self._geaendert = False
         if pfad.exists():
             self._daten = json.loads(pfad.read_text(encoding="utf-8"))
 
@@ -34,12 +35,23 @@ class State:
 
     def merken(self, portal: str, bereich: str, ident: str, pruefsumme: str) -> None:
         """Record an entry as seen, with its checksum."""
+        if self._daten.get(portal, {}).get(bereich, {}).get(ident) == pruefsumme:
+            return
         self._daten.setdefault(portal, {}).setdefault(bereich, {})[ident] = pruefsumme
+        self._geaendert = True
 
     def sichern(self) -> None:
-        """Write the state back to disk."""
+        """Write the state back to disk, skipping when nothing changed.
+
+        Skipping keeps shared output directories safe: a run that
+        learned nothing new never touches the state file, so two
+        machines cannot clobber each other's state over a sync.
+        """
+        if not self._geaendert:
+            return
         self._pfad.parent.mkdir(parents=True, exist_ok=True)
         self._pfad.write_text(json.dumps(self._daten, indent=2, sort_keys=True, ensure_ascii=False), encoding="utf-8")
+        self._geaendert = False
         log.debug("State nach %s geschrieben", self._pfad)
 
     def uebertrage_von(self, alt_pfad: Path, portal: str) -> None:
@@ -59,6 +71,7 @@ class State:
         alt_daten = State(alt_pfad)._daten.get(portal)
         if alt_daten:
             self._daten = {portal: alt_daten}
+            self._geaendert = True
             self.sichern()
             log.info("State von %s nach %s überführt", alt_pfad, self._pfad)
 
