@@ -187,3 +187,7 @@ Mit `--letzte n` werden die n neuesten Meldungen pro Portal abgeholt – über a
 Bereiche hinweg nach Datum sortiert, unabhängig davon, ob sie schon bekannt sind.
 Nützlich, um sich die letzten Meldungen erneut anzeigen zu lassen; Kombinierbar
 mit `--keine-bestaetigung` und `--keine-ausgabe`.
+
+## Lizenz
+
+Apache License 2.0 – siehe [LICENSE](LICENSE).

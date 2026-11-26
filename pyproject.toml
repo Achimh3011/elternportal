@@ -5,7 +5,8 @@ version = "0.2.1"
 description = "Fetch new messages from eltern-portal.org school portals as Markdown"
 readme = "README.md"
 requires-python = ">=3.14,<4.0"
-license = "GPL-3.0-or-later"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [
     {name = "Achim Herwig", email = "achim.herwig@wodca.de"},
 ]
