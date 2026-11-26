@@ -1,5 +1,9 @@
 # fetch-elternportal
 
+[![CI](https://github.com/Achimh3011/elternportal/actions/workflows/ci.yml/badge.svg)](https://github.com/Achimh3011/elternportal/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.14%2B-blue)](https://www.python.org/)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+
 Holt neue Nachrichten aus Eltern-Portalen (eltern-portal.org) und speichert sie
 als Markdown – inklusive Anhänge und extrahiertem Text aus PDFs und Word-Dokumenten.
 
