@@ -14,6 +14,11 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v5
+      - name: pdftotext für die PDF-Textextraktion installieren
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then brew install poppler
+          else sudo apt-get update && sudo apt-get install -y poppler-utils
+          fi
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.14"

@@ -1,6 +1,7 @@
 """Tests for sending new messages as mail."""
 
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 from elternportal.config import SmtpKonfiguration
@@ -37,7 +38,8 @@ def test_sende_mail_baut_nachricht_und_versendet(mocker):
     assert nachricht["From"] == "benutzer"
     assert nachricht["To"] == "an@example.com"
     assert nachricht["Subject"] == "Betreff"
-    assert nachricht["Date"] == "Wed, 25 Nov 2026 14:32:00 +0100"
+    # Der Date-Header muss denselben Zeitpunkt tragen (unabhaengig von der lokalen Zone).
+    assert parsedate_to_datetime(nachricht["Date"]) == _DATUM
 
 
 def test_absender_gewinnt_ueber_benutzer(mocker):

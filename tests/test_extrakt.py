@@ -1,13 +1,17 @@
 """Tests for attachment text extraction (PDF via pdftotext, DOCX via zipfile)."""
 
+import shutil
 import zipfile
 from pathlib import Path
+
+import pytest
 
 from elternportal.extrakt import extrahiere_text, inline_limit_erreicht
 
 _WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 
+@pytest.mark.skipif(shutil.which("pdftotext") is None, reason="pdftotext ist nicht installiert")
 def test_pdf_text_extraction(tmp_path):
     pdf = _baue_pdf(tmp_path / "brief.pdf", "Hallo aus dem PDF")
     text = extrahiere_text(pdf)
