@@ -29,7 +29,8 @@ BEREICHE_URLS = {
 _CONFIG_DIR = Path(platformdirs.user_config_dir()) / "elternportal"
 CONFIG_DATEI = _CONFIG_DIR / "fetch-elternportal.conf"
 _DATA_DIR = Path(platformdirs.user_data_dir()) / "elternportal"
-STATE_DATEI = _DATA_DIR / "state.json"
+# Legacy location of the pre-per-portal state; read once for migration.
+STATE_DATEI_ALT = _DATA_DIR / "state.json"
 
 _DEFAULT_KONFIG = {
     "bereiche": "elternbriefe, fachlehrer, klassenleitung, brett",
@@ -60,6 +61,11 @@ class PortalKonfiguration:
     bereiche: tuple[str, ...]
     output_dir: Path
     empfaenger: tuple[str, ...] = ()
+
+    @property
+    def state_pfad(self) -> Path:
+        """State file inside the portal directory, so it can be shared between machines."""
+        return self.output_dir / "state.json"
 
 
 @dataclass(frozen=True)

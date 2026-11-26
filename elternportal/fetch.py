@@ -14,7 +14,7 @@ from elternportal import ausgabe, brett, briefe, keyring_store, kommunikation, m
 from elternportal.client import LoginFehlgeschlagen, PortalClient
 from elternportal.config import (
     BEREICHE_URLS,
-    STATE_DATEI,
+    STATE_DATEI_ALT,
     lade_konfiguration,
     PortalKonfiguration,
     SmtpKonfiguration,
@@ -133,13 +133,11 @@ def main(
         raise click.ClickException(f"Unbekannte Portale: {', '.join(sorted(unbekannt))}")
     if mail_versenden and konfig.smtp is None:
         raise click.ClickException("--mail erfordert eine [SMTP]-Sektion in der Konfiguration.")
-    state = State(STATE_DATEI)
     for portal in konfig.portale:
         if slugs and portal.slug not in slugs:
             continue
         _portal_abholen(
             portal,
-            state,
             trocken,
             neu_holen,
             not bestaetigen,
@@ -149,8 +147,14 @@ def main(
             mail_versenden,
             konfig.smtp,
         )
+
+
+def _state_laden(portal: PortalKonfiguration, trocken: bool) -> State:
+    """Load the portal state from its output_dir, migrating once from the legacy file."""
+    state = State(portal.state_pfad)
     if not trocken:
-        state.sichern()
+        state.uebertrage_von(STATE_DATEI_ALT, portal.slug)
+    return state
 
 
 def _zugangsdaten(portal: PortalKonfiguration, keyring_erzwingen: bool) -> tuple[str, str]:
@@ -166,7 +170,6 @@ def _zugangsdaten(portal: PortalKonfiguration, keyring_erzwingen: bool) -> tuple
 
 def _portal_abholen(
     portal,
-    state: State,
     trocken: bool,
     neu_holen: bool,
     bestaetigen: bool,
@@ -182,6 +185,7 @@ def _portal_abholen(
     except (RuntimeError, httpx2.HTTPError) as fehler:
         click.secho(f"Portal {portal.slug} übersprungen: {fehler}", err=True, fg="red")
         return
+    state = _state_laden(portal, trocken)
     try:
         client.login()
         if mail_versenden and not portal.empfaenger:
@@ -215,6 +219,8 @@ def _portal_abholen(
         click.secho(f"Portal {portal.slug} abgebrochen: {fehler}", err=True, fg="red")
     finally:
         client.schliessen()
+        if not trocken:
+            state.sichern()
 
 
 def _bereich_abholen(kontext: LaufKontext, bereich: str) -> None:

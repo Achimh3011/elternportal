@@ -86,6 +86,18 @@ def test_pro_portal_output_dir_wird_ohne_slug_verwendet(config_umgebung, tmp_pat
     assert konfig.portale[0].output_dir == tmp_path / "los-nachrichten"
 
 
+def test_state_pfad_liegt_im_output_dir(config_umgebung, tmp_path):
+    datei = tmp_path / "state-pfad.conf"
+    datei.write_text(
+        f"[los]\npass_eintrag = familie/los\noutput_dir = {tmp_path / 'los-nachrichten'}\n"
+        "[mwg]\npass_eintrag = familie/mwg\n",
+        encoding="utf-8",
+    )
+    konfig = lade_konfiguration(datei)
+    assert konfig.portale[0].state_pfad == tmp_path / "los-nachrichten" / "state.json"
+    assert konfig.portale[1].state_pfad == Path.home() / "elternportal-nachrichten" / "mwg" / "state.json"
+
+
 def test_smtp_sektion_wird_geparst(config_umgebung, tmp_path):
     datei = tmp_path / "smtp.conf"
     datei.write_text(

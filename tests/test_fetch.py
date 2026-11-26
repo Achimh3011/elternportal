@@ -324,6 +324,38 @@ def test_smtp_benutzer_uebersteuert_keyring_user(mocker, tmp_path):
     assert _smtp_zugangsdaten(smtp, False) == ("mc12345", "geheim")
 
 
+def test_state_laden_migriert_aus_alt_datei(mocker, tmp_path):
+    from elternportal.config import PortalKonfiguration
+    from elternportal.fetch import _state_laden
+    from elternportal.store import State
+
+    alt = tmp_path / "alt-state.json"
+    alt_state = State(alt)
+    alt_state.merken("los", "elternbriefe", "1", "abc")
+    alt_state.sichern()
+    mocker.patch("elternportal.fetch.STATE_DATEI_ALT", alt)
+    portal = PortalKonfiguration(slug="los", pass_eintrag="familie/los", bereiche=(), output_dir=tmp_path / "los")
+    state = _state_laden(portal, trocken=False)
+    assert state.ist_bekannt("los", "elternbriefe", "1", "abc")
+    assert (tmp_path / "los" / "state.json").exists()
+
+
+def test_state_laden_ohne_migration_im_dry_run(mocker, tmp_path):
+    from elternportal.config import PortalKonfiguration
+    from elternportal.fetch import _state_laden
+    from elternportal.store import State
+
+    alt = tmp_path / "alt-state.json"
+    alt_state = State(alt)
+    alt_state.merken("los", "elternbriefe", "1", "abc")
+    alt_state.sichern()
+    mocker.patch("elternportal.fetch.STATE_DATEI_ALT", alt)
+    portal = PortalKonfiguration(slug="los", pass_eintrag="familie/los", bereiche=(), output_dir=tmp_path / "los")
+    state = _state_laden(portal, trocken=True)
+    assert not state.ist_bekannt("los", "elternbriefe", "1", "abc")
+    assert not (tmp_path / "los").exists()
+
+
 def test_ohne_smtp_benutzer_wird_pass_user_gelesen(mocker, tmp_path):
     import dataclasses
 

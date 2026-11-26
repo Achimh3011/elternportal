@@ -19,6 +19,42 @@ def test_state_zyklus(tmp_path):
     assert not geladen.ist_bekannt("los", "brett", "1", "abc")
 
 
+def test_uebertragung_uebernimmt_nur_das_eigene_portal(tmp_path):
+    alt = State(tmp_path / "alt-state.json")
+    alt.merken("los", "elternbriefe", "1", "abc")
+    alt.merken("mwg", "elternbriefe", "2", "def")
+    alt.sichern()
+    state = State(tmp_path / "los" / "state.json")
+    state.uebertrage_von(alt._pfad, "los")
+    assert state.ist_bekannt("los", "elternbriefe", "1", "abc")
+    assert not state.ist_bekannt("mwg", "elternbriefe", "2", "def")
+    assert State(tmp_path / "los" / "state.json").ist_bekannt("los", "elternbriefe", "1", "abc")
+
+
+def test_uebertragung_ueberschreibt_nichts_und_ignoriert_fehlende_alt_datei(tmp_path):
+    alt = State(tmp_path / "alt-state.json")
+    alt.merken("los", "elternbriefe", "1", "abc")
+    alt.sichern()
+    vorhanden = State(tmp_path / "los" / "state.json")
+    vorhanden.merken("los", "elternbriefe", "9", "xyz")
+    vorhanden.sichern()
+    vorhanden.uebertrage_von(alt._pfad, "los")
+    assert vorhanden.ist_bekannt("los", "elternbriefe", "9", "xyz")
+    assert not vorhanden.ist_bekannt("los", "elternbriefe", "1", "abc")
+    leer = State(tmp_path / "mwg" / "state.json")
+    leer.uebertrage_von(tmp_path / "gibt-es-nicht.json", "mwg")
+    assert not (tmp_path / "mwg").exists()
+
+
+def test_uebertragung_ohne_alt_daten_schreibt_nichts(tmp_path):
+    alt = State(tmp_path / "alt-state.json")
+    alt.merken("mwg", "elternbriefe", "2", "def")
+    alt.sichern()
+    state = State(tmp_path / "los" / "state.json")
+    state.uebertrage_von(alt._pfad, "los")
+    assert not state._pfad.exists()
+
+
 def test_pruefsumme_ist_stabil_und_inhaltssensitiv():
     from elternportal.models import Brief
 

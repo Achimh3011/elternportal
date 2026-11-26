@@ -42,6 +42,26 @@ class State:
         self._pfad.write_text(json.dumps(self._daten, indent=2, sort_keys=True, ensure_ascii=False), encoding="utf-8")
         log.debug("State nach %s geschrieben", self._pfad)
 
+    def uebertrage_von(self, alt_pfad: Path, portal: str) -> None:
+        """One-time migration from a legacy shared state file.
+
+        Adopts this portal's subtree from the old global state file so
+        switching to the per-portal files does not re-fetch everything.
+        Does nothing if the own state file already exists or the legacy
+        file is gone.
+
+        Args:
+            alt_pfad: Legacy state file shared by all portals.
+            portal: Portal slug whose entries to adopt.
+        """
+        if self._pfad.exists() or not alt_pfad.exists():
+            return
+        alt_daten = State(alt_pfad)._daten.get(portal)
+        if alt_daten:
+            self._daten = {portal: alt_daten}
+            self.sichern()
+            log.info("State von %s nach %s überführt", alt_pfad, self._pfad)
+
 
 @dataclass(frozen=True)
 class AnhangInfo:
